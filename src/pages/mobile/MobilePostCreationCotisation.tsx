@@ -1,9 +1,9 @@
 /**
- * Écran post-création tontine — reproduction exacte de
- * post_creation_tontine_screen.dart Flutter.
+ * Écran post-création cotisation — reproduction exacte de
+ * post_creation_cagnotte_screen.dart Flutter.
  *
  * Gradient plein-écran surface→surfaceDeep→surfaceDeeper
- * Carte #code or (accent), confettis, actions : Partager lien + Enregistrer participants
+ * Carte #code vert (primary), confettis, actions : Partager + Voir le détail
  */
 
 import { useEffect, useState } from 'react'
@@ -23,11 +23,16 @@ const CONFETTIS = [
 ]
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
+const IconCheck = () => (
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+    stroke={T.surfaceEl} strokeWidth="2.5" strokeLinecap="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+)
 const IconCopy = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <rect x="9" y="9" width="13" height="13" rx="2"/>
-    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+    <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
   </svg>
 )
 const IconCheckSmall = () => (
@@ -43,13 +48,13 @@ const IconLink = () => (
     <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
   </svg>
 )
-const IconGroupAdd = () => (
+const IconDetail = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
-    <circle cx="9" cy="7" r="4"/>
-    <line x1="19" y1="8" x2="19" y2="14"/>
-    <line x1="22" y1="11" x2="16" y2="11"/>
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
   </svg>
 )
 const IconArrow = () => (
@@ -60,17 +65,17 @@ const IconArrow = () => (
 )
 
 // ── Carte action ───────────────────────────────────────────────────────────────
-function CarteAction({ icon, titre, sous, filled, onClick }: {
+function CarteAction({ icon, titre, sous, accent, onClick }: {
   icon: React.ReactNode; titre: string; sous: string
-  filled: boolean; onClick: () => void
+  accent: boolean; onClick: () => void
 }) {
   const [pressed, setPressed] = useState(false)
-  const bg    = filled ? T.primary : T.surfaceEl
-  const fg    = filled ? T.surfaceEl : T.textStrong
-  const iconBg = filled
-    ? 'rgba(251,247,240,0.18)'
-    : 'rgba(201,123,74,0.12)'
-  const iconFg = filled ? T.surfaceEl : T.accent
+  const bg    = accent ? T.primary : T.surfaceEl
+  const fg    = accent ? T.surfaceEl : T.textStrong
+  const iconBg = accent
+    ? 'rgba(251,247,240,0.20)'
+    : 'rgba(201,123,74,0.10)'
+  const iconFg = accent ? T.surfaceEl : T.accent
 
   return (
     <div
@@ -80,7 +85,7 @@ function CarteAction({ icon, titre, sous, filled, onClick }: {
       style={{
         padding: '16px', borderRadius: '16px', cursor: 'pointer',
         background: bg,
-        border: filled ? 'none' : `1px solid ${T.border}`,
+        border: accent ? 'none' : `1px solid ${T.border}`,
         display: 'flex', alignItems: 'center', gap: '14px',
         transform: pressed ? 'scale(0.97)' : 'scale(1)',
         transition: 'transform 0.12s',
@@ -96,9 +101,9 @@ function CarteAction({ icon, titre, sous, filled, onClick }: {
       </div>
       <div style={{ flex: 1 }}>
         <p style={{ fontSize: 15, fontWeight: 700, color: fg, marginBottom: 1 }}>{titre}</p>
-        <p style={{ fontSize: 13, color: filled ? `rgba(251,247,240,0.70)` : T.textSec, lineHeight: 1.4 }}>{sous}</p>
+        <p style={{ fontSize: 13, color: accent ? `rgba(251,247,240,0.70)` : T.textSec, lineHeight: 1.4 }}>{sous}</p>
       </div>
-      <span style={{ color: filled ? `rgba(251,247,240,0.50)` : T.textTert }}>
+      <span style={{ color: accent ? `rgba(251,247,240,0.50)` : T.textTert }}>
         <IconArrow />
       </span>
     </div>
@@ -106,7 +111,7 @@ function CarteAction({ icon, titre, sous, filled, onClick }: {
 }
 
 // ── Composant principal ────────────────────────────────────────────────────────
-export default function MobilePostCreationTontine() {
+export default function MobilePostCreationCotisation() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [cagnotte, setCagnotte] = useState<CagnotteDetail | null>(null)
@@ -116,11 +121,11 @@ export default function MobilePostCreationTontine() {
   useEffect(() => {
     if (!id) return
     chargerCagnotte(id)
-      .then(c => c ? setCagnotte(c) : setErreur('Tontine introuvable.'))
+      .then(c => c ? setCagnotte(c) : setErreur('Cotisation introuvable.'))
       .catch(() => setErreur('Erreur lors du chargement.'))
   }, [id])
 
-  const copierCode = async () => {
+  const copier = async () => {
     const txt = cagnotte?.id ?? id ?? ''
     try { await navigator.clipboard.writeText(txt) } catch { /* ignore */ }
     setCopied(true)
@@ -130,7 +135,7 @@ export default function MobilePostCreationTontine() {
   const partager = () => {
     const lien = `${window.location.origin}/rejoindre/${id}`
     if (navigator.share) {
-      navigator.share({ title: 'Rejoindre la tontine', url: lien }).catch(() => {})
+      navigator.share({ title: 'Rejoindre la cotisation', url: lien }).catch(() => {})
     } else {
       navigator.clipboard.writeText(lien).catch(() => {})
     }
@@ -168,16 +173,16 @@ export default function MobilePostCreationTontine() {
         @keyframes fadeSlide { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
-      {/* Fond dégradé plein-écran */}
+      {/* ── Fond dégradé plein-écran (identique au Flutter Container hors Scaffold) */}
       <div style={{
         minHeight: '100dvh',
         background: `linear-gradient(135deg, ${T.surface} 0%, ${T.surfaceDeep} 60%, #D9D2C0 100%)`,
         position: 'relative', overflow: 'hidden',
       }}>
 
-        {/* Cercles glow — accent en haut, primary en bas */}
-        <div style={{ position: 'absolute', top: -80, right: -60, width: 240, height: 240, borderRadius: '50%', background: `rgba(201,123,74,0.28)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -100, left: -80, width: 280, height: 280, borderRadius: '50%', background: `rgba(15,76,92,0.18)`, filter: 'blur(70px)', pointerEvents: 'none' }} />
+        {/* Cercles glow */}
+        <div style={{ position: 'absolute', top: -80, right: -60, width: 240, height: 240, borderRadius: '50%', background: `rgba(201,123,74,0.25)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: -100, left: -80, width: 280, height: 280, borderRadius: '50%', background: `rgba(15,76,92,0.20)`, filter: 'blur(70px)', pointerEvents: 'none' }} />
 
         {/* Confettis */}
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
@@ -188,67 +193,66 @@ export default function MobilePostCreationTontine() {
           ))}
         </div>
 
-        {/* Contenu scrollable */}
+        {/* ── Contenu scrollable ─────────────────────────────────────────── */}
         <div style={{ position: 'relative', zIndex: 1, padding: '40px 24px 48px', maxWidth: 480, margin: '0 auto' }}>
 
-          {/* Pastille succès — accent gold */}
+          {/* Pastille succès */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
             <div style={{
               width: 80, height: 80, borderRadius: '50%',
-              background: `rgba(201,123,74,0.14)`,
-              border: `2px solid rgba(201,123,74,0.35)`,
+              background: `rgba(15,76,92,0.12)`,
+              border: `2px solid rgba(15,76,92,0.30)`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               animation: 'scaleIn 0.6s cubic-bezier(.34,1.56,.64,1) forwards',
             }}>
-              {/* Icône check avec fill accent */}
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
-                stroke={T.accent} strokeWidth="2.5" strokeLinecap="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
+              <IconCheck />
             </div>
           </div>
 
           {/* Titre */}
           <p style={{ fontSize: 28, fontWeight: 800, color: T.textStrong, textAlign: 'center', letterSpacing: '-0.5px', marginBottom: 6, animation: 'fadeSlide 0.5s 0.25s both' }}>
-            Tontine créée !
+            Cotisation créée !
           </p>
           <p style={{ fontSize: 15, color: T.textSec, textAlign: 'center', lineHeight: 1.5, marginBottom: 28, animation: 'fadeSlide 0.5s 0.35s both' }}>
-            «&nbsp;{cagnotte?.titre}&nbsp;» est prête à accueillir ses participants.
+            «&nbsp;{cagnotte?.titre}&nbsp;» est prête à recevoir des cotisations.
           </p>
 
-          {/* Carte #code — or (accent) */}
+          {/* ── Carte #code (primary vert) ─────────────────────────────── */}
           <div style={{
             padding: 20, borderRadius: 20, marginBottom: 28,
             background: T.surfaceEl,
             border: `1px solid ${T.border}`,
-            boxShadow: `0 4px 16px rgba(201,123,74,0.08)`,
+            boxShadow: `0 4px 16px rgba(15,76,92,0.06)`,
             animation: 'fadeSlide 0.5s 0.45s both',
           }}>
+            {/* Label */}
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textTert, letterSpacing: '1.4px', textAlign: 'center', marginBottom: 12 }}>
-              NUMÉRO DE TONTINE
+              NUMÉRO DE COTISATION
             </p>
 
-            {/* Numéro en accent or */}
+            {/* Numéro */}
             <p style={{
-              fontSize: 40, fontWeight: 800, color: T.accent,
-              textAlign: 'center', lineHeight: 1.1,
+              fontSize: 40, fontWeight: 800, color: T.primary,
+              textAlign: 'center', letterSpacing: '0px', lineHeight: 1.1,
               marginBottom: 6, fontFamily: 'monospace',
             }}>
               {cagnotte?.id ?? id}
             </p>
 
+            {/* Sous-label */}
             <p style={{ fontSize: 13, color: T.textSec, textAlign: 'center', marginBottom: 16, lineHeight: 1.4 }}>
-              Partagez ce code pour que vos membres puissent rejoindre la tontine.
+              Partagez ce code pour que vos membres puissent rejoindre la cotisation.
             </p>
 
+            {/* Bouton copier */}
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button
-                onClick={copierCode}
+                onClick={copier}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '10px 20px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: copied ? T.accent : `rgba(201,123,74,0.12)`,
-                  color: copied ? T.surfaceEl : T.accent,
+                  background: copied ? T.primary : `rgba(15,76,92,0.10)`,
+                  color: copied ? T.surfaceEl : T.primary,
                   fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
                   transition: 'all 0.2s',
                 }}
@@ -259,33 +263,25 @@ export default function MobilePostCreationTontine() {
             </div>
           </div>
 
-          {/* Section "Comment continuer ?" */}
+          {/* ── Section suite ──────────────────────────────────────────── */}
           <p style={{ fontSize: 11, fontWeight: 700, color: T.textTert, textTransform: 'uppercase', letterSpacing: '1.4px', marginBottom: 12, paddingLeft: 4, animation: 'fadeSlide 0.4s 0.62s both' }}>
-            Comment voulez-vous continuer ?
+            Suite
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeSlide 0.5s 0.7s both' }}>
-            {/* Action 1 — Partager le lien (vert primary, filled) */}
             <CarteAction
               icon={<IconLink />}
-              titre="Partager le lien d'invitation"
-              sous="Chaque personne s'inscrit elle-même via un formulaire."
-              filled={true}
+              titre="Partager le lien"
+              sous="Chaque membre clique pour rejoindre et cotiser."
+              accent={true}
               onClick={partager}
             />
-            {/* Action 2 — Enregistrer les participants (outlined, icône or) */}
             <CarteAction
-              icon={<IconGroupAdd />}
-              titre="Enregistrer les participants"
-              sous="Ajoutez vous-même chaque membre, un à un."
-              filled={false}
-              onClick={() => navigate(`/cagnottes/${id}/participants`, {
-                state: {
-                  titre: cagnotte?.titre,
-                  nombreMax: cagnotte?.nombreParticipants,
-                  nombreInscrits: cagnotte?.nombreInscrits,
-                }
-              })}
+              icon={<IconDetail />}
+              titre="Voir le détail"
+              sous="Accédez au suivi, à l'historique et aux participants."
+              accent={false}
+              onClick={() => navigate(`/cagnottes/${id}`)}
             />
           </div>
 
@@ -295,7 +291,7 @@ export default function MobilePostCreationTontine() {
               onClick={() => navigate('/dashboard')}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 600, color: T.textSec, fontFamily: 'inherit', padding: '8px 16px' }}
             >
-              Plus tard
+              Retour à l'accueil
             </button>
           </div>
         </div>

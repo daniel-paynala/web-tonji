@@ -254,7 +254,7 @@ export default function MobileReversement() {
               inputMode="numeric"
               value={montant}
               onChange={e => { setMontant(e.target.value.replace(/\D/g, '')); setErreur('') }}
-              placeholder="Ex : 50 000"
+              placeholder="ex : 50 000"
               style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '24px', fontWeight: 800, color: T.textStrong, fontFamily: 'inherit' }}
             />
             <span style={{ fontSize: '16px', fontWeight: 700, color: T.textSec }}>FCFA</span>

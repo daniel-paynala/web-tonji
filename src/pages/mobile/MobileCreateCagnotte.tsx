@@ -336,7 +336,7 @@ function SectionTontine({
     <div>
       <TField
         label="Nombre de participants"
-        hint="Ex : 12"
+        hint="ex :12"
         icon={<IconGroup />}
         value={participants}
         onChange={onParticipants}
@@ -347,7 +347,7 @@ function SectionTontine({
       <div style={{ height: '14px' }} />
       <TField
         label="Montant récupéré par participant"
-        hint="Ex : 50 000"
+        hint="ex :50 000"
         suffix="FCFA"
         icon={<IconPayments />}
         value={montantCycle}
@@ -420,7 +420,7 @@ function SectionTontine({
             <div style={{ paddingTop: '14px' }}>
               <TField
                 label="Montant de la pénalité"
-                hint="Ex : 1 000"
+                hint="ex :1 000"
                 suffix="FCFA"
                 icon={<IconHourglass />}
                 value={penaliteMontant}
@@ -465,7 +465,7 @@ function SectionCagnotteOuverte({
     <div>
       <TField
         label="Montant de la cotisation (optionnel)"
-        hint="Ex : 500 000"
+        hint="ex :500 000"
         suffix="FCFA"
         icon={<IconFlag />}
         value={montantCible}
@@ -728,7 +728,7 @@ function SectionIdentifiant({ id }: { id: string }) {
       <div style={{ flex: 1 }}>
         <p style={{ fontSize: '12px', color: T.textTert }}>Identifiant</p>
         <p style={{ fontSize: '22px', fontWeight: 800, color: T.textStrong, letterSpacing: '1px', lineHeight: 1.2 }}>
-          #{id}
+          {id}
         </p>
       </div>
       <p style={{ fontSize: '11px', fontWeight: 700, color: T.accent, letterSpacing: '1.2px', textTransform: 'uppercase' }}>
@@ -1044,7 +1044,7 @@ export default function MobileCreateCagnotte() {
         if (montantCible) payload.montant_cible = parseInt(montantCible.replace(/\s/g, ''))
         if (dateFin) payload.date_fin = dateFin
         const creee = await creerCagnotte(payload)
-        navigate(`/cagnottes/${creee.id}`)
+        navigate(`/cagnottes/${creee.id}/cotisation-creee`)
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur inattendue. Réessaie.'
@@ -1118,7 +1118,7 @@ export default function MobileCreateCagnotte() {
           {/* 3 — Champ Titre */}
           <TField
             label="Titre"
-            hint={estTontine ? 'Ex : Tontine du quartier' : 'Ex : Anniversaire Maman'}
+            hint={estTontine ? 'ex :Tontine du quartier' : 'ex :Anniversaire Maman'}
             icon={<IconText />}
             value={titre}
             onChange={setTitre}

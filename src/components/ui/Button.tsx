@@ -49,11 +49,11 @@ const sizeClasses: Record<Size, string> = {
 }
 
 const variantStyles: Record<Variant, CSSProperties> = {
-  primary: { background: 'linear-gradient(135deg, #0F4C5C 0%, #0A3540 100%)' },
-  accent:  { background: 'linear-gradient(135deg, #C97B4A 0%, #B76E45 100%)' },
+  primary: { background: 'linear-gradient(135deg, #0A6847 0%, #064D34 100%)' },
+  accent:  { background: 'linear-gradient(135deg, #E8A830 0%, #C48A1A 100%)' },
   outline: {},
   ghost:   {},
-  danger:  { backgroundColor: '#A04434' },
+  danger:  { backgroundColor: '#D94F3D' },
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(

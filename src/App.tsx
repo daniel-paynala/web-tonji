@@ -1,64 +1,55 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
-// Pages publiques
-import InscriptionPage from '@/pages/auth/InscriptionPage'
-import ConnexionPage from '@/pages/auth/ConnexionPage'
+// Pages mobile — reproduction exacte du Flutter (source de vérité)
+import MobileInscription           from '@/pages/mobile/MobileInscription'
+import MobileConnexion             from '@/pages/mobile/MobileConnexion'
+import MobileHome                  from '@/pages/mobile/MobileHome'
+import MobileCreateCagnotte        from '@/pages/mobile/MobileCreateCagnotte'
+import MobileDetailCagnotte        from '@/pages/mobile/MobileDetailCagnotte'
+import MobileCotiser               from '@/pages/mobile/MobileCotiser'
+import MobileReversement           from '@/pages/mobile/MobileReversement'
+import MobileAjoutParticipants     from '@/pages/mobile/MobileAjoutParticipants'
+import MobileProfil                from '@/pages/mobile/MobileProfil'
+import MobilePostCreationTontine   from '@/pages/mobile/MobilePostCreationTontine'
+import MobilePostCreationCotisation from '@/pages/mobile/MobilePostCreationCotisation'
+
+// Pages accessibles sans compte
 import InvitationPage from '@/pages/public/InvitationPage'
 
-// Pages privées
-import DashboardPage from '@/pages/dashboard/DashboardPage'
-import NouvelleCagnottePage from '@/pages/cagnottes/NouvelleCagnottePage'
-import DetailCagnottePage from '@/pages/cagnottes/DetailCagnottePage'
-import ProfilPage from '@/pages/profil/ProfilPage'
-import ParametresPage from '@/pages/parametres/ParametresPage'
-import PaiementPage from '@/pages/paiement/PaiementPage'
-
-// Nouvelles pages mobile
-import CotiserPage from '@/pages/cagnottes/CotiserPage'
-import PostCreationTontinePage from '@/pages/cagnottes/PostCreationTontinePage'
-import ReversementPage from '@/pages/cagnottes/ReversementPage'
-import AjoutParticipantsPage from '@/pages/cagnottes/AjoutParticipantsPage'
-
-// Brand board (accès libre)
-import BrandBoard from '@/pages/BrandBoard'
-
 // Layout & Guards
-import AppLayout from '@/layouts/AppLayout'
+import AppLayout    from '@/layouts/AppLayout'
 import PrivateRoute from '@/components/guards/PrivateRoute'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Brand board */}
-        <Route path="/brand" element={<BrandBoard />} />
 
-        {/* Routes publiques */}
-        <Route path="/inscription" element={<InscriptionPage />} />
-        <Route path="/connexion" element={<ConnexionPage />} />
+        {/* ── Publiques sans layout ──────────────────────────────────────── */}
+        <Route path="/inscription" element={<MobileInscription />} />
+        <Route path="/connexion"   element={<MobileConnexion />} />
         <Route path="/rejoindre/:token" element={<InvitationPage />} />
-        <Route path="/paiement/:id" element={<PaiementPage />} />
 
-        {/* Route semi-publique : détail cagnotte accessible sans compte */}
-        <Route element={<AppLayout />}>
-          <Route path="/cagnottes/:id" element={<DetailCagnottePage />} />
+        {/* ── Post-création : plein écran (pas d'AppBar) ─────────────────── */}
+        <Route element={<PrivateRoute />}>
+          <Route path="/cagnottes/:id/cotisation-creee" element={<MobilePostCreationCotisation />} />
+          <Route path="/cagnottes/:id/tontine-creee"    element={<MobilePostCreationTontine />} />
         </Route>
 
-        {/* Routes privées */}
+        {/* ── Privées avec AppBar ────────────────────────────────────────── */}
         <Route element={<PrivateRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/cagnottes/nouvelle" element={<NouvelleCagnottePage />} />
-            <Route path="/cagnottes/:id/cotiser" element={<CotiserPage />} />
-            <Route path="/cagnottes/:id/tontine-creee" element={<PostCreationTontinePage />} />
-            <Route path="/cagnottes/:id/reverser" element={<ReversementPage />} />
-            <Route path="/cagnottes/:id/participants" element={<AjoutParticipantsPage />} />
-            <Route path="/profil" element={<ProfilPage />} />
-            <Route path="/parametres" element={<ParametresPage />} />
+            <Route path="/dashboard"                  element={<MobileHome />} />
+            <Route path="/cagnottes/nouvelle"         element={<MobileCreateCagnotte />} />
+            <Route path="/cagnottes/:id/participants" element={<MobileAjoutParticipants />} />
+            <Route path="/cagnottes/:id/cotiser"      element={<MobileCotiser />} />
+            <Route path="/cagnottes/:id/reverser"     element={<MobileReversement />} />
+            <Route path="/cagnottes/:id"              element={<MobileDetailCagnotte />} />
+            <Route path="/profil"                     element={<MobileProfil />} />
           </Route>
         </Route>
 
-        {/* Redirect racine */}
+        {/* ── Redirections ───────────────────────────────────────────────── */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

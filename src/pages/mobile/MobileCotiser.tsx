@@ -318,7 +318,7 @@ export default function MobileCotiser() {
                 value={montant}
                 onChange={e => { if (!montantFixe) setMontant(e.target.value.replace(/\D/g, '')); setErreur('') }}
                 readOnly={montantFixe}
-                placeholder="Ex : 10 000"
+                placeholder="ex : 10 000"
                 style={{
                   flex: 1, background: 'none', border: 'none', outline: 'none',
                   fontSize: '24px', fontWeight: 800, color: T.textStrong, fontFamily: 'inherit',

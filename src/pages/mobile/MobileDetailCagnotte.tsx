@@ -403,42 +403,42 @@ function exporterHistorique(c: CagnotteDetail) {
     @page { size: A4 portrait; margin: 18mm 16mm; }
     @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1A1F1E; background: #F4ECE0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #14202E; background: #F6F7F4; }
     .wm { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
     .page { position: relative; z-index: 1; max-width: 660px; margin: 0 auto; padding: 48px 40px 60px; }
     /* Header */
     .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
-    .brand-icon { width: 46px; height: 46px; border-radius: 13px; background: #0F4C5C; display: flex; align-items: center; justify-content: center; color: #F4ECE0; font-size: 22px; font-weight: 900; letter-spacing: -1px; flex-shrink: 0; }
-    .brand-name { font-size: 22px; font-weight: 900; color: #0F4C5C; letter-spacing: -0.5px; }
-    .brand-sub { font-size: 12px; color: #5C625F; margin-top: 1px; }
-    .sep { height: 1px; background: #D8CFC0; margin-bottom: 20px; }
+    .brand-icon { width: 46px; height: 46px; border-radius: 13px; background: #0A6847; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 22px; font-weight: 900; letter-spacing: -1px; flex-shrink: 0; }
+    .brand-name { font-size: 22px; font-weight: 900; color: #0A6847; letter-spacing: -0.5px; }
+    .brand-sub { font-size: 12px; color: #4A5568; margin-top: 1px; }
+    .sep { height: 1px; background: #E8EDE9; margin-bottom: 20px; }
     .cag-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
-    .cag-title { font-size: 20px; font-weight: 800; color: #1A1F1E; }
-    .cag-meta { font-size: 12px; color: #5C625F; margin-top: 3px; }
-    .badge-statut { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgba(15,76,92,0.10); color: #0F4C5C; }
+    .cag-title { font-size: 20px; font-weight: 800; color: #14202E; }
+    .cag-meta { font-size: 12px; color: #4A5568; margin-top: 3px; }
+    .badge-statut { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgba(10,104,71,0.10); color: #0A6847; }
     /* Résumé */
     .resume { display: flex; gap: 10px; margin: 22px 0; flex-wrap: wrap; }
-    .rc { flex: 1; min-width: 110px; background: #FBF7F0; border: 1px solid #D8CFC0; border-radius: 12px; padding: 13px 15px; }
-    .rc-label { font-size: 10px; font-weight: 700; color: #8A8F8C; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+    .rc { flex: 1; min-width: 110px; background: #FFFFFF; border: 1px solid #E8EDE9; border-radius: 12px; padding: 13px 15px; }
+    .rc-label { font-size: 10px; font-weight: 700; color: #8A94A0; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
     .rc-value { font-size: 16px; font-weight: 800; }
-    .c-success { color: #6B8E4E; } .c-accent { color: #C97B4A; } .c-primary { color: #0F4C5C; }
+    .c-success { color: #1A7A50; } .c-accent { color: #E8A830; } .c-primary { color: #0A6847; }
     /* Table */
-    table { width: 100%; border-collapse: collapse; background: #FBF7F0; border-radius: 14px; overflow: hidden; }
-    thead tr { background: #0F4C5C; }
-    th { padding: 10px 13px; text-align: left; font-size: 11px; font-weight: 700; color: #F4ECE0; letter-spacing: 0.5px; text-transform: uppercase; }
-    td { padding: 10px 13px; font-size: 13px; border-bottom: 1px solid #EAE0CF; vertical-align: middle; }
+    table { width: 100%; border-collapse: collapse; background: #FFFFFF; border-radius: 14px; overflow: hidden; }
+    thead tr { background: #0A6847; }
+    th { padding: 10px 13px; text-align: left; font-size: 11px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.5px; text-transform: uppercase; }
+    td { padding: 10px 13px; font-size: 13px; border-bottom: 1px solid #ECEDE9; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: rgba(234,224,207,0.40); }
-    .b-entree { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(107,142,78,0.13); color: #6B8E4E; }
-    .b-sortie  { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(201,123,74,0.13); color: #C97B4A; }
-    .amt-e { font-weight: 800; color: #6B8E4E; white-space: nowrap; }
-    .amt-s { font-weight: 800; color: #C97B4A; white-space: nowrap; }
+    tr:nth-child(even) td { background: rgba(236,237,233,0.50); }
+    .b-entree { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(26,122,80,0.12); color: #1A7A50; }
+    .b-sortie  { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(232,168,48,0.15); color: #C48A1A; }
+    .amt-e { font-weight: 800; color: #1A7A50; white-space: nowrap; }
+    .amt-s { font-weight: 800; color: #C48A1A; white-space: nowrap; }
     /* Footer */
-    .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #D8CFC0; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-    .ft-l { font-size: 11px; color: #8A8F8C; line-height: 1.65; }
-    .ft-r { font-size: 10px; color: #8A8F8C; text-align: right; }
+    .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #E8EDE9; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .ft-l { font-size: 11px; color: #8A94A0; line-height: 1.65; }
+    .ft-r { font-size: 10px; color: #8A94A0; text-align: right; }
     /* Bouton impression (non imprimé) */
-    .print-btn { display: block; margin: 0 auto 28px; padding: 10px 28px; border-radius: 10px; border: none; background: #0F4C5C; color: #F4ECE0; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .print-btn { display: block; margin: 0 auto 28px; padding: 10px 28px; border-radius: 10px; border: none; background: #0A6847; color: #FFFFFF; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
   </style>
 </head>
 <body>
@@ -698,7 +698,7 @@ function HeroDetail({ c }: { c: CagnotteDetail }) {
           {isTontine ? 'Tontine' : 'Cotisation'}
         </span>
         <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.70)', letterSpacing: '0.6px' }}>
-          #{c.id}
+          {c.id}
         </span>
         {isGerant && (
           <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '3px 9px', borderRadius: '20px', background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.90)' }}>
@@ -805,8 +805,8 @@ function VuePublique({ info, id, onAction, enCours }: {
   }
 
   const heroGrad = isTontine
-    ? `linear-gradient(135deg, #0F4C5C 0%, #1a6d82 100%)`
-    : `linear-gradient(135deg, #9B6A30 0%, #C97B4A 55%, #D4954A 100%)`
+    ? `linear-gradient(135deg, #0A6847 0%, #0D7C5F 100%)`
+    : `linear-gradient(135deg, #C48A1A 0%, #E8A830 55%, #F5D078 100%)`
 
   return (
     <div style={{ background: T.surface, minHeight: '100%', paddingBottom: '80px' }}>
@@ -817,7 +817,7 @@ function VuePublique({ info, id, onAction, enCours }: {
           <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: 'rgba(255,255,255,0.20)', color: 'rgba(255,255,255,0.95)', letterSpacing: '0.4px' }}>
             {isTontine ? 'Tontine' : 'Cotisation'}
           </span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.70)', letterSpacing: '0.6px' }}>#{id}</span>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.70)', letterSpacing: '0.6px' }}>{id}</span>
         </div>
         <p style={{ fontSize: '20px', fontWeight: 800, color: 'rgba(255,255,255,0.95)', lineHeight: 1.2, marginBottom: '14px' }}>{info.titre}</p>
         <p style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Total collecté</p>

@@ -192,7 +192,7 @@ function CarteCagnotte({ c, delay }: { c: Cagnotte; delay: number }) {
             {c.titre}
           </p>
           <p style={{ fontSize: '12px', color: T.textSec }}>
-            {isTontine ? 'Tontine' : 'Cagnotte'} · #{c.id}
+            {isTontine ? 'Tontine' : 'Cagnotte'} · N°{c.id}
           </p>
         </div>
 

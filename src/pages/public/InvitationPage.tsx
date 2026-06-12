@@ -18,19 +18,19 @@ import { chargerInfoCagnottePublique, rejoindre } from '@/lib/cagnottesApi'
 import type { InfoCagnottePublique } from '@/lib/cagnottesApi'
 import { useAuthStore } from '@/store/authStore'
 
-// ── Palette Tonji (inline car page publique sans accès à @/lib/tokens) ────────
+// ── Palette Tonji — brand board 2026-06-12 (miroir de @/lib/tokens) ─────────
 const P = {
-  primary:     '#0F4C5C',
-  accent:      '#C97B4A',
-  surface:     '#F4ECE0',
-  surfaceEl:   '#FBF7F0',
-  surfaceDeep: '#EAE0CF',
-  textStrong:  '#1A1F1E',
-  textSec:     '#5C625F',
-  textTert:    '#8A8F8C',
-  border:      '#D8CFC0',
-  success:     '#6B8E4E',
-  error:       '#A04434',
+  primary:     '#0A6847',
+  accent:      '#E8A830',
+  surface:     '#F6F7F4',
+  surfaceEl:   '#FFFFFF',
+  surfaceDeep: '#ECEDE9',
+  textStrong:  '#14202E',
+  textSec:     '#4A5568',
+  textTert:    '#8A94A0',
+  border:      '#E8EDE9',
+  success:     '#1A7A50',
+  error:       '#D94F3D',
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ function CarteCagnotte({ info, ref: refNum }: { info: InfoCagnottePublique | nul
         {info?.titre ?? '—'}
       </p>
       <p style={{ fontSize: '12px', color: P.textSec }}>
-        Référence #{refNum}
+        Référence {refNum}
         {info?.nombreParticipants ? ` · ${info.nombreParticipants} participant${info.nombreParticipants > 1 ? 's' : ''}` : ''}
       </p>
     </div>

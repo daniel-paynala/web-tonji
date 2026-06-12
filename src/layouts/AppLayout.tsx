@@ -1,10 +1,11 @@
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useMobile } from '@/hooks/useMobile'
+import { T } from '@/lib/tokens'
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 
-const IconSettings = ({ filled }: { filled?: boolean }) => (
+const IconSettings = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3"/>
@@ -39,7 +40,7 @@ function getTitle(pathname: string): string {
 // ── Mobile layout — miroir exact du Flutter ───────────────────────────────
 
 function MobileLayout() {
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
@@ -50,22 +51,20 @@ function MobileLayout() {
     ? `${user.prenom.charAt(0)}${user.nom.charAt(0)}`.toUpperCase()
     : '?'
 
-  const handleLogout = () => { logout(); navigate('/connexion') }
-
   return (
-    <div className="min-h-screen flex flex-col tap-none" style={{ backgroundColor: '#F4ECE0' }}>
+    <div className="min-h-screen flex flex-col tap-none" style={{ backgroundColor: T.surface }}>
 
       {/* AppBar — identique au Flutter AppBarTheme */}
       <header
         className="sticky top-0 z-40 flex items-center justify-between px-4 flex-shrink-0"
-        style={{ backgroundColor: '#0F4C5C', height: '56px', minHeight: '56px' }}
+        style={{ backgroundColor: T.primary, height: '56px', minHeight: '56px' }}
       >
         <div className="flex items-center gap-3">
           {showBackBtn && (
             <button
               onClick={() => navigate(-1)}
               className="mr-1 p-1 rounded-full transition-opacity active:opacity-60"
-              style={{ color: '#F4ECE0' }}
+              style={{ color: T.surfaceEl }}
               aria-label="Retour"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -73,7 +72,7 @@ function MobileLayout() {
               </svg>
             </button>
           )}
-          <span className="font-bold text-[18px] tracking-tight" style={{ color: '#F4ECE0' }}>
+          <span className="font-bold text-[18px] tracking-tight" style={{ color: T.surfaceEl }}>
             {title}
           </span>
         </div>
@@ -83,7 +82,7 @@ function MobileLayout() {
           <button
             onClick={() => navigate('/profil')}
             className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold active:opacity-70 transition-opacity"
-            style={{ backgroundColor: '#C97B4A', color: '#1A1F1E' }}
+            style={{ backgroundColor: T.accent, color: T.textStrong }}
             aria-label="Mon profil"
           >
             {initiales}
@@ -92,7 +91,7 @@ function MobileLayout() {
           <Link
             to="/connexion"
             className="px-3 h-8 rounded-full flex items-center text-xs font-bold"
-            style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: '#F4ECE0' }}
+            style={{ backgroundColor: 'rgba(255,255,255,0.18)', color: T.surfaceEl }}
           >
             Se connecter
           </Link>
@@ -107,7 +106,7 @@ function MobileLayout() {
   )
 }
 
-// ── Desktop layout — garde l'existant ─────────────────────────────────────
+// ── Desktop layout ─────────────────────────────────────────────────────────
 
 function DesktopLayout() {
   const { user, logout } = useAuthStore()
@@ -120,22 +119,22 @@ function DesktopLayout() {
     : '?'
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F4ECE0' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: T.surface }}>
 
       {/* Header desktop */}
       <header
         className="sticky top-0 h-16 flex items-center justify-between px-6 flex-shrink-0 z-40"
-        style={{ backgroundColor: '#0F4C5C', borderBottom: '1px solid rgba(244,236,224,0.1)' }}
+        style={{ backgroundColor: T.primary, borderBottom: `1px solid rgba(255,255,255,0.10)` }}
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center shadow-glow font-bold text-sm tracking-tight"
-            style={{ backgroundColor: '#C97B4A', color: '#1A1F1E' }}
+            style={{ backgroundColor: T.accent, color: T.textStrong }}
           >
             T
           </div>
-          <span className="font-bold text-lg tracking-tight" style={{ color: '#F4ECE0' }}>Tonji</span>
+          <span className="font-bold text-lg tracking-tight" style={{ color: T.surfaceEl }}>Tonji</span>
         </div>
 
         {/* Actions */}
@@ -144,14 +143,14 @@ function DesktopLayout() {
             onClick={() => navigate('/profil')}
             className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-colors duration-150"
             style={{
-              backgroundColor: 'rgba(244,236,224,0.08)',
-              borderColor: 'rgba(244,236,224,0.15)',
-              color: 'rgba(244,236,224,0.85)',
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              borderColor: 'rgba(255,255,255,0.15)',
+              color: 'rgba(255,255,255,0.85)',
             }}
           >
             <div
               className="w-6 h-6 rounded-full flex items-center justify-center text-2xs font-bold"
-              style={{ backgroundColor: '#C97B4A', color: '#1A1F1E' }}
+              style={{ backgroundColor: T.accent, color: T.textStrong }}
             >
               {initiales}
             </div>
@@ -163,9 +162,9 @@ function DesktopLayout() {
           <button
             onClick={() => navigate('/parametres')}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
-            style={{ color: 'rgba(244,236,224,0.75)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#F4ECE0')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(244,236,224,0.75)')}
+            style={{ color: 'rgba(255,255,255,0.75)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.surfaceEl)}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.75)')}
           >
             <IconSettings />
             <span className="hidden sm:inline">Paramètres</span>
@@ -174,9 +173,9 @@ function DesktopLayout() {
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
-            style={{ color: 'rgba(244,236,224,0.6)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#F4ECE0')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(244,236,224,0.6)')}
+            style={{ color: 'rgba(255,255,255,0.60)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.surfaceEl)}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.60)')}
           >
             <IconLogout />
             <span className="hidden sm:inline">Déconnexion</span>
