@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary:           #0F4C5C;
+    --color-primary-light:     #15616F;
+    --color-accent:            #C97B4A;
+    --color-accent-light:      #D08555;
+    --color-surface:           #F4ECE0;
+    --color-surface-elevated:  #FBF7F0;
+    --color-surface-deep:      #EAE0CF;
+    --color-text-strong:       #1A1F1E;
+    --color-text-secondary:    #5C625F;
+    --color-text-tertiary:     #8A8F8C;
+    --color-border:            #D8CFC0;
+    --color-border-strong:     #C4BAA8;
+    --color-success:           #6B8E4E;
+    --color-warning:           #D49B3F;
+    --color-error:             #A04434;
+    --color-info:              #3B7A8A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #F4ECE0;
+    color: #1A1F1E;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+  }
+
+  ::selection { background: rgba(15,76,92,0.15); color: var(--color-text-strong); }
+
+  /* Safe area for phones with home indicator */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+
+@layer utilities {
+  .text-on-primary  { color: #F4ECE0; }
+  .text-on-accent   { color: #1A1F1E; }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #0F4C5C 0%, #C97B4A 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glass {
+    background: rgba(251, 247, 240, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .glass-dark {
+    background: rgba(15, 76, 92, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .bg-mesh {
+    background-color: #0A3540;
+    background-image:
+      radial-gradient(at 20% 30%, rgba(15,76,92,0.9) 0px, transparent 50%),
+      radial-gradient(at 80% 10%, rgba(201,123,74,0.4) 0px, transparent 50%),
+      radial-gradient(at 60% 80%, rgba(21,97,111,0.5) 0px, transparent 50%),
+      radial-gradient(at 10% 90%, rgba(201,123,74,0.2) 0px, transparent 50%);
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, var(--color-border) 25%, var(--color-surface-elevated) 50%, var(--color-border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-6px); }
+  }
+  .animate-float { animation: float 4s ease-in-out infinite; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fadeUp 0.35s ease-out forwards; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.8); }
+  }
+  .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+  /* Tap highlight suppression on mobile */
+  .tap-none { -webkit-tap-highlight-color: transparent; }
+}
