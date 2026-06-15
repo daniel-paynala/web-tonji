@@ -399,38 +399,38 @@ function exporterHistorique(c: CagnotteDetail) {
     @page { size: A4 portrait; margin: 14mm 14mm; }
     @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #14202E; background: #FFFFFF; font-size: 16px; line-height: 1.5; }
-    .page { max-width: 580px; margin: 0 auto; padding: 32px 28px 48px; }
-    .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-    .brand-icon { width: 52px; height: 52px; border-radius: 14px; background: #0A6847; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 26px; font-weight: 900; flex-shrink: 0; }
-    .brand-name { font-size: 26px; font-weight: 900; color: #0A6847; }
-    .brand-sub { font-size: 14px; color: #4A5568; margin-top: 2px; }
-    .sep { height: 2px; background: #0A6847; margin-bottom: 20px; border-radius: 2px; }
-    .cag-title { font-size: 26px; font-weight: 800; color: #14202E; margin-bottom: 6px; }
-    .cag-meta { font-size: 15px; color: #4A5568; margin-bottom: 6px; }
-    .badge-statut { display: inline-block; font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: rgba(10,104,71,0.12); color: #0A6847; margin-bottom: 20px; }
-    .resume { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0 28px; }
-    .rc { background: #F4F6F4; border: 1.5px solid #D8E8D8; border-radius: 12px; padding: 16px 18px; }
-    .rc-label { font-size: 12px; font-weight: 700; color: #6A8070; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px; }
-    .rc-value { font-size: 22px; font-weight: 800; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #14202E; background: #FFFFFF; font-size: 30px; line-height: 1.5; }
+    .page { max-width: 760px; margin: 0 auto; padding: 36px 32px 56px; }
+    .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; }
+    .brand-icon { width: 64px; height: 64px; border-radius: 16px; background: #0A6847; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 34px; font-weight: 900; flex-shrink: 0; }
+    .brand-name { font-size: 38px; font-weight: 900; color: #0A6847; }
+    .brand-sub { font-size: 26px; color: #4A5568; margin-top: 4px; }
+    .sep { height: 3px; background: #0A6847; margin-bottom: 24px; border-radius: 2px; }
+    .cag-title { font-size: 38px; font-weight: 800; color: #14202E; margin-bottom: 8px; }
+    .cag-meta { font-size: 28px; color: #4A5568; margin-bottom: 8px; }
+    .badge-statut { display: inline-block; font-size: 24px; font-weight: 700; padding: 6px 16px; border-radius: 20px; background: rgba(10,104,71,0.12); color: #0A6847; margin-bottom: 24px; }
+    .resume { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 24px 0 32px; }
+    .rc { background: #F4F6F4; border: 2px solid #D8E8D8; border-radius: 14px; padding: 20px 22px; }
+    .rc-label { font-size: 22px; font-weight: 700; color: #6A8070; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px; }
+    .rc-value { font-size: 34px; font-weight: 800; }
     .c-success { color: #1A7A50; } .c-accent { color: #C48A1A; } .c-primary { color: #0A6847; }
-    .section-titre { font-size: 18px; font-weight: 800; color: #14202E; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1.5px solid #E0E8E0; }
-    .mvt { padding: 16px 0; border-bottom: 1px solid #E8EDE9; }
+    .section-titre { font-size: 30px; font-weight: 800; color: #14202E; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #E0E8E0; }
+    .mvt { padding: 20px 0; border-bottom: 1.5px solid #E8EDE9; }
     .mvt:last-child { border-bottom: none; }
-    .mvt-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .mvt-badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 8px; }
+    .mvt-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .mvt-badge { font-size: 22px; font-weight: 700; padding: 4px 14px; border-radius: 10px; }
     .b-entree { background: rgba(26,122,80,0.12); color: #1A7A50; }
     .b-sortie  { background: rgba(196,138,26,0.15); color: #C48A1A; }
-    .mvt-montant { font-size: 20px; font-weight: 800; }
+    .mvt-montant { font-size: 32px; font-weight: 800; }
     .amt-e { color: #1A7A50; }
     .amt-s { color: #C48A1A; }
-    .mvt-nom { font-size: 17px; font-weight: 700; color: #14202E; margin-bottom: 3px; }
-    .mvt-date { font-size: 14px; color: #6A8070; }
-    .mvt-vide { font-size: 16px; color: #8A94A0; text-align: center; padding: 40px 0; }
-    .footer { margin-top: 32px; padding-top: 16px; border-top: 1.5px solid #E0E8E0; }
-    .ft-ref { font-size: 16px; font-weight: 700; color: #0A6847; margin-bottom: 6px; }
-    .ft-info { font-size: 13px; color: #8A94A0; line-height: 1.7; }
-    .print-btn { display: block; margin: 0 auto 28px; padding: 14px 36px; border-radius: 12px; border: none; background: #0A6847; color: #FFFFFF; font-size: 17px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .mvt-nom { font-size: 30px; font-weight: 700; color: #14202E; margin-bottom: 4px; }
+    .mvt-date { font-size: 26px; color: #6A8070; }
+    .mvt-vide { font-size: 28px; color: #8A94A0; text-align: center; padding: 48px 0; }
+    .footer { margin-top: 36px; padding-top: 20px; border-top: 2px solid #E0E8E0; }
+    .ft-ref { font-size: 28px; font-weight: 700; color: #0A6847; margin-bottom: 8px; }
+    .ft-info { font-size: 24px; color: #8A94A0; line-height: 1.7; }
+    .print-btn { display: block; margin: 0 auto 32px; padding: 16px 40px; border-radius: 14px; border: none; background: #0A6847; color: #FFFFFF; font-size: 28px; font-weight: 700; cursor: pointer; font-family: inherit; }
   </style>
 </head>
 <body>
