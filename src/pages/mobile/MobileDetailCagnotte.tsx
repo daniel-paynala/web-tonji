@@ -267,7 +267,7 @@ function LigneParticipant({ p, index, estTontine, tontineDemarree }: {
       {/* Numéro d'ordre tontine démarrée */}
       {estTontine && tontineDemarree && p.ordrePassage > 0 && (
         <span style={{ width: 24, fontSize: '11px', fontWeight: 800, color: T.primary, flexShrink: 0, textAlign: 'center' }}>
-          #{p.ordrePassage}
+          N°{p.ordrePassage}
         </span>
       )}
 
@@ -354,17 +354,17 @@ function exporterHistorique(c: CagnotteDetail) {
     const s = Math.round(Math.abs(n)).toString()
     let out = ''
     for (let i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 === 0) out += ' '
+      if (i > 0 && (s.length - i) % 3 === 0) out += ' '
       out += s[i]
     }
-    return out + ' FCFA'
+    return out + ' FCFA'
   }
 
   const fmtD = (iso: string) => {
     const d = new Date(iso)
     const h = d.getHours().toString().padStart(2, '0')
     const m = d.getMinutes().toString().padStart(2, '0')
-    return `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()} · ${h}h${m}`
+    return `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()} ${h}h${m}`
   }
 
   type Mvt = { estSortie: boolean; nom: string; montant: number; date: string }
@@ -377,72 +377,63 @@ function exporterHistorique(c: CagnotteDetail) {
   const totalSorties = c.sorties.reduce((s, r) => s + r.montant, 0)
   const solde = totalEntrees - totalSorties
 
-  // Filigrane : grille de "TONDO" tournés à -38°
-  const wmCells = Array.from({ length: 30 }, (_, i) => {
-    const col = i % 5
-    const row = Math.floor(i / 5)
-    return `<div style="position:absolute;left:${col * 22 - 6}%;top:${row * 16 - 4}%;font-size:54px;font-weight:900;color:rgba(15,76,92,0.055);transform:rotate(-38deg);white-space:nowrap;font-family:system-ui,-apple-system,sans-serif;letter-spacing:5px;user-select:none;pointer-events:none;">TONDO</div>`
-  }).join('')
-
   const lignes = mouvements.length === 0
-    ? `<tr><td colspan="4" style="text-align:center;padding:32px;color:#8A8F8C;">Aucun mouvement enregistré.</td></tr>`
+    ? `<div class="mvt-vide">Aucun mouvement enregistré.</div>`
     : mouvements.map(m => `
-      <tr>
-        <td><span class="${m.estSortie ? 'b-sortie' : 'b-entree'}">${m.estSortie ? 'Reversement' : 'Paiement'}</span></td>
-        <td>${escHtml(m.nom)}</td>
-        <td style="white-space:nowrap">${fmtD(m.date)}</td>
-        <td class="${m.estSortie ? 'amt-s' : 'amt-e'}">${m.estSortie ? '–' : '+'}${fmtM(m.montant)}</td>
-      </tr>`).join('')
+      <div class="mvt ${m.estSortie ? 'mvt-sortie' : 'mvt-entree'}">
+        <div class="mvt-top">
+          <span class="mvt-badge ${m.estSortie ? 'b-sortie' : 'b-entree'}">${m.estSortie ? 'Reversement' : 'Paiement'}</span>
+          <span class="mvt-montant ${m.estSortie ? 'amt-s' : 'amt-e'}">${m.estSortie ? '–' : '+'}${fmtM(m.montant)}</span>
+        </div>
+        <div class="mvt-nom">${escHtml(m.nom)}</div>
+        <div class="mvt-date">${fmtD(m.date)}</div>
+      </div>`).join('')
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Historique — ${escHtml(c.titre)} — Tonji</title>
   <style>
-    @page { size: A4 portrait; margin: 18mm 16mm; }
+    @page { size: A4 portrait; margin: 14mm 14mm; }
     @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #14202E; background: #F6F7F4; }
-    .wm { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
-    .page { position: relative; z-index: 1; max-width: 660px; margin: 0 auto; padding: 48px 40px 60px; }
-    /* Header */
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
-    .brand-icon { width: 46px; height: 46px; border-radius: 13px; background: #0A6847; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 22px; font-weight: 900; letter-spacing: -1px; flex-shrink: 0; }
-    .brand-name { font-size: 22px; font-weight: 900; color: #0A6847; letter-spacing: -0.5px; }
-    .brand-sub { font-size: 12px; color: #4A5568; margin-top: 1px; }
-    .sep { height: 1px; background: #E8EDE9; margin-bottom: 20px; }
-    .cag-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
-    .cag-title { font-size: 20px; font-weight: 800; color: #14202E; }
-    .cag-meta { font-size: 12px; color: #4A5568; margin-top: 3px; }
-    .badge-statut { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgba(10,104,71,0.10); color: #0A6847; }
-    /* Résumé */
-    .resume { display: flex; gap: 10px; margin: 22px 0; flex-wrap: wrap; }
-    .rc { flex: 1; min-width: 110px; background: #FFFFFF; border: 1px solid #E8EDE9; border-radius: 12px; padding: 13px 15px; }
-    .rc-label { font-size: 10px; font-weight: 700; color: #8A94A0; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
-    .rc-value { font-size: 16px; font-weight: 800; }
-    .c-success { color: #1A7A50; } .c-accent { color: #E8A830; } .c-primary { color: #0A6847; }
-    /* Table */
-    table { width: 100%; border-collapse: collapse; background: #FFFFFF; border-radius: 14px; overflow: hidden; }
-    thead tr { background: #0A6847; }
-    th { padding: 10px 13px; text-align: left; font-size: 11px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.5px; text-transform: uppercase; }
-    td { padding: 10px 13px; font-size: 13px; border-bottom: 1px solid #ECEDE9; vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: rgba(236,237,233,0.50); }
-    .b-entree { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(26,122,80,0.12); color: #1A7A50; }
-    .b-sortie  { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(232,168,48,0.15); color: #C48A1A; }
-    .amt-e { font-weight: 800; color: #1A7A50; white-space: nowrap; }
-    .amt-s { font-weight: 800; color: #C48A1A; white-space: nowrap; }
-    /* Footer */
-    .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #E8EDE9; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-    .ft-l { font-size: 11px; color: #8A94A0; line-height: 1.65; }
-    .ft-r { font-size: 10px; color: #8A94A0; text-align: right; }
-    /* Bouton impression (non imprimé) */
-    .print-btn { display: block; margin: 0 auto 28px; padding: 10px 28px; border-radius: 10px; border: none; background: #0A6847; color: #FFFFFF; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #14202E; background: #FFFFFF; font-size: 16px; line-height: 1.5; }
+    .page { max-width: 580px; margin: 0 auto; padding: 32px 28px 48px; }
+    .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+    .brand-icon { width: 52px; height: 52px; border-radius: 14px; background: #0A6847; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 26px; font-weight: 900; flex-shrink: 0; }
+    .brand-name { font-size: 26px; font-weight: 900; color: #0A6847; }
+    .brand-sub { font-size: 14px; color: #4A5568; margin-top: 2px; }
+    .sep { height: 2px; background: #0A6847; margin-bottom: 20px; border-radius: 2px; }
+    .cag-title { font-size: 26px; font-weight: 800; color: #14202E; margin-bottom: 6px; }
+    .cag-meta { font-size: 15px; color: #4A5568; margin-bottom: 6px; }
+    .badge-statut { display: inline-block; font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: rgba(10,104,71,0.12); color: #0A6847; margin-bottom: 20px; }
+    .resume { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0 28px; }
+    .rc { background: #F4F6F4; border: 1.5px solid #D8E8D8; border-radius: 12px; padding: 16px 18px; }
+    .rc-label { font-size: 12px; font-weight: 700; color: #6A8070; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px; }
+    .rc-value { font-size: 22px; font-weight: 800; }
+    .c-success { color: #1A7A50; } .c-accent { color: #C48A1A; } .c-primary { color: #0A6847; }
+    .section-titre { font-size: 18px; font-weight: 800; color: #14202E; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1.5px solid #E0E8E0; }
+    .mvt { padding: 16px 0; border-bottom: 1px solid #E8EDE9; }
+    .mvt:last-child { border-bottom: none; }
+    .mvt-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .mvt-badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 8px; }
+    .b-entree { background: rgba(26,122,80,0.12); color: #1A7A50; }
+    .b-sortie  { background: rgba(196,138,26,0.15); color: #C48A1A; }
+    .mvt-montant { font-size: 20px; font-weight: 800; }
+    .amt-e { color: #1A7A50; }
+    .amt-s { color: #C48A1A; }
+    .mvt-nom { font-size: 17px; font-weight: 700; color: #14202E; margin-bottom: 3px; }
+    .mvt-date { font-size: 14px; color: #6A8070; }
+    .mvt-vide { font-size: 16px; color: #8A94A0; text-align: center; padding: 40px 0; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1.5px solid #E0E8E0; }
+    .ft-ref { font-size: 16px; font-weight: 700; color: #0A6847; margin-bottom: 6px; }
+    .ft-info { font-size: 13px; color: #8A94A0; line-height: 1.7; }
+    .print-btn { display: block; margin: 0 auto 28px; padding: 14px 36px; border-radius: 12px; border: none; background: #0A6847; color: #FFFFFF; font-size: 17px; font-weight: 700; cursor: pointer; font-family: inherit; }
   </style>
 </head>
 <body>
-<div class="wm">${wmCells}</div>
 <div class="page">
   <button class="print-btn no-print" onclick="window.print()">Imprimer / Enregistrer en PDF</button>
   <div class="brand">
@@ -453,45 +444,34 @@ function exporterHistorique(c: CagnotteDetail) {
     </div>
   </div>
   <div class="sep"></div>
-  <div class="cag-row">
-    <div>
-      <div class="cag-title">${escHtml(c.titre)}</div>
-      <div class="cag-meta">Référence #${escHtml(c.id)} · ${c.type === 'tontine' ? 'Tontine périodique' : 'Cotisation ouverte'}</div>
-    </div>
-    <span class="badge-statut">${c.statut === 'cloturee' ? 'Clôturée' : 'Active'}</span>
-  </div>
+  <div class="cag-title">${escHtml(c.titre)}</div>
+  <div class="cag-meta">N°${escHtml(c.id)} · ${c.type === 'tontine' ? 'Tontine périodique' : 'Cotisation ouverte'}</div>
+  <span class="badge-statut">${c.statut === 'cloturee' ? 'Clôturée' : 'Active'}</span>
 
   <div class="resume">
     <div class="rc"><div class="rc-label">Total encaissé</div><div class="rc-value c-success">+${fmtM(totalEntrees)}</div></div>
     ${totalSorties > 0 ? `<div class="rc"><div class="rc-label">Total reversé</div><div class="rc-value c-accent">–${fmtM(totalSorties)}</div></div>` : ''}
-    <div class="rc"><div class="rc-label">Solde historique</div><div class="rc-value c-primary">${fmtM(solde)}</div></div>
+    <div class="rc"><div class="rc-label">Solde</div><div class="rc-value c-primary">${fmtM(solde)}</div></div>
     <div class="rc"><div class="rc-label">Mouvements</div><div class="rc-value c-primary">${mouvements.length}</div></div>
   </div>
 
-  <table>
-    <thead><tr><th>Type</th><th>Nom</th><th>Date &amp; heure</th><th>Montant</th></tr></thead>
-    <tbody>${lignes}</tbody>
-  </table>
+  <div class="section-titre">Détail des transactions</div>
+  ${lignes}
 
   <div class="footer">
-    <div class="ft-l">
-      <strong>Tonji by Paynala</strong><br>
-      Généré le ${dateExport}<br>
-      <em>Relevé informatif non contractuel. Ce document comporte un filigrane numérique Tonji à des fins d'authenticité et d'anti-fraude.</em>
-    </div>
-    <div class="ft-r">Réf. #${escHtml(c.id)}</div>
+    <div class="ft-ref">N°${escHtml(c.id)} — Tonji by Paynala</div>
+    <div class="ft-info">Généré le ${dateExport}<br>Relevé informatif non contractuel.</div>
   </div>
 </div>
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'width=740,height=960,scrollbars=yes')
+  const win = window.open('', '_blank', 'width=660,height=960,scrollbars=yes')
   if (win) {
     win.document.write(html)
     win.document.close()
   }
 }
-
 // ── Historique unifié — miroir exact de _BlocHistoriqueUnifie ────────────────
 
 function BlocHistoriqueUnifie({ historique, sorties, onExporter }: { historique: Paiement[]; sorties: Reversement[]; onExporter?: () => void }) {
@@ -502,67 +482,71 @@ function BlocHistoriqueUnifie({ historique, sorties, onExporter }: { historique:
   ].sort((a, b) => b.date.localeCompare(a.date))
 
   const total = items.length
-
-  const exportBtn = onExporter ? (
-    <button
-      onClick={onExporter}
-      title="Exporter l'historique"
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: '5px',
-        padding: '5px 10px', borderRadius: '10px', border: `1.5px solid ${T.border}`,
-        background: T.surfaceEl, color: T.textSec, fontSize: '12px', fontWeight: 700,
-        fontFamily: 'inherit', cursor: 'pointer',
-      }}
-    >
-      <IconDownload /> Exporter
-    </button>
-  ) : undefined
+  const displayed = items.slice(0, 5)
+  const reste = total - 5
 
   return (
-    <BlocSection titre="Historique" compteur={`${total}`} action={exportBtn}>
+    <BlocSection titre="Historique" compteur={`${total}`}>
       {total === 0 ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 14px' }}>
           <span style={{ color: T.textTert }}><IconHistory /></span>
           <p style={{ fontSize: '14px', color: T.textTert }}>Aucun mouvement enregistré pour le moment.</p>
         </div>
       ) : (
-        items.map((item, i) => {
-          const estPremier = i === 0
-          const estDernier = i === total - 1
-          const dotColor   = item.estSortie ? T.accent : T.success
-          const sign       = item.estSortie ? '–' : '+'
-          const amountColor = item.estSortie ? T.accent : T.success
+        <>
+          {displayed.map((item, i) => {
+            const estPremier = i === 0
+            const estDernier = i === displayed.length - 1 && reste <= 0
+            const dotColor   = item.estSortie ? T.accent : T.success
+            const sign       = item.estSortie ? '–' : '+'
+            const amountColor = item.estSortie ? T.accent : T.success
 
-          return (
-            <div key={item.key} style={{ display: 'flex', padding: '8px 14px', alignItems: 'stretch' }}>
-              {/* Timeline: ligne + dot + ligne */}
-              <div style={{ width: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                {/* Ligne au-dessus */}
-                <div style={{ width: '1.5px', height: estPremier ? '8px' : '8px', background: estPremier ? 'transparent' : T.border }} />
-                {/* Dot */}
-                <div style={{
-                  width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
-                  background: dotColor, border: `2px solid ${T.surfaceEl}`,
-                }} />
-                {/* Ligne en dessous */}
-                {!estDernier && <div style={{ width: '1.5px', flex: 1, background: T.border, marginTop: '0px' }} />}
-              </div>
-
-              {/* Contenu */}
-              <div style={{ flex: 1, marginLeft: '8px', paddingTop: '2px', paddingBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: '14px', fontWeight: 700, color: T.textStrong, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.nom}
-                  </p>
-                  <p style={{ fontSize: '12px', color: T.textSec, marginTop: '2px' }}>{formatDateHeure(item.date)}</p>
+            return (
+              <div key={item.key} style={{ display: 'flex', padding: '8px 14px', alignItems: 'stretch' }}>
+                <div style={{ width: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '1.5px', height: '8px', background: estPremier ? 'transparent' : T.border }} />
+                  <div style={{
+                    width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
+                    background: dotColor, border: `2px solid ${T.surfaceEl}`,
+                  }} />
+                  {!estDernier && <div style={{ width: '1.5px', flex: 1, background: T.border }} />}
                 </div>
-                <p style={{ fontSize: '14px', fontWeight: 800, color: amountColor, flexShrink: 0 }}>
-                  {sign}{fmtMontant(item.montant)}
-                </p>
+                <div style={{ flex: 1, marginLeft: '8px', paddingTop: '2px', paddingBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: '14px', fontWeight: 700, color: T.textStrong, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.nom}
+                    </p>
+                    <p style={{ fontSize: '12px', color: T.textSec, marginTop: '2px' }}>{formatDateHeure(item.date)}</p>
+                  </div>
+                  <p style={{ fontSize: '14px', fontWeight: 800, color: amountColor, flexShrink: 0 }}>
+                    {sign}{fmtMontant(item.montant)}
+                  </p>
+                </div>
               </div>
+            )
+          })}
+          {reste > 0 && onExporter && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '12px 14px', borderTop: `1px solid ${T.border}`,
+            }}>
+              <p style={{ fontSize: '13px', color: T.textSec }}>
+                + {reste} autre{reste > 1 ? 's' : ''} transaction{reste > 1 ? 's' : ''}
+              </p>
+              <button
+                onClick={onExporter}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  padding: '6px 12px', borderRadius: '10px', border: 'none',
+                  background: T.primary, color: T.surface, fontSize: '12px', fontWeight: 700,
+                  fontFamily: 'inherit', cursor: 'pointer',
+                }}
+              >
+                <IconDownload /> Exporter PDF
+              </button>
             </div>
-          )
-        })
+          )}
+        </>
       )}
     </BlocSection>
   )

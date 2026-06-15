@@ -346,7 +346,7 @@ function SectionTontine({
       />
       <div style={{ height: '14px' }} />
       <TField
-        label="Montant récupéré par participant"
+        label="Montant récupéré par participant (sans les frais)"
         hint="ex :50 000"
         suffix="FCFA"
         icon={<IconPayments />}
@@ -407,7 +407,7 @@ function SectionTontine({
         }}
       >
         <span style={{ fontSize: '20px', lineHeight: 1 }}>{penaliteOuvertes ? '−' : '+'}</span>
-        {penaliteOuvertes ? 'Masquer la pénalité de retard' : '+ Pénalité de retard  (optionnel)'}
+        {penaliteOuvertes ? 'Masquer la pénalité de retard' : '+ Pénalité de retard'}
       </button>
       <AnimatePresence>
         {penaliteOuvertes && (
@@ -464,7 +464,7 @@ function SectionCagnotteOuverte({
   return (
     <div>
       <TField
-        label="Montant de la cotisation (optionnel)"
+        label="Montant de la cotisation"
         hint="ex :500 000"
         suffix="FCFA"
         icon={<IconFlag />}
@@ -496,7 +496,7 @@ function SectionCagnotteOuverte({
         <span style={{ color: T.textSec, flexShrink: 0 }}><IconCalendar /></span>
         <div style={{ flex: 1 }}>
           <p style={{ fontSize: '11px', fontWeight: 600, color: T.textSec, lineHeight: 1 }}>
-            Date de fin (optionnelle)
+            Date de fin
           </p>
           <p style={{ fontSize: '16px', color: dateFin ? T.textStrong : T.textTert, marginTop: '4px', lineHeight: 1 }}>
             {dateFin ? fmt(dateFin) : 'JJ/MM/AAAA'}

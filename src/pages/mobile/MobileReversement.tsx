@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { T } from '@/lib/tokens'
 import { reverser, type Participant } from '@/lib/cagnottesApi'
@@ -36,6 +36,47 @@ const IconCheck = () => (
 const IconError = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.error} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
 )
+
+// ── Écran succès (composant séparé pour pouvoir utiliser useEffect) ───────────
+function SuccesScreen({ id, nomBeneficiaire, navigate }: {
+  id: string
+  nomBeneficiaire: string
+  navigate: (to: string, opts?: { replace?: boolean }) => void
+}) {
+  const [compte, setCompte] = useState(3)
+
+  useEffect(() => {
+    if (compte <= 0) {
+      navigate(`/cagnottes/${id}`, { replace: true })
+      return
+    }
+    const t = setTimeout(() => setCompte(v => v - 1), 1000)
+    return () => clearTimeout(t)
+  }, [compte, id, navigate])
+
+  return (
+    <div style={{ background: T.surface, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+      <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: `rgba(107,142,78,0.12)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+        <IconCheck />
+      </div>
+      <p style={{ fontSize: '22px', fontWeight: 700, color: T.textStrong, textAlign: 'center', marginBottom: '8px' }}>Reversement effectué</p>
+      {nomBeneficiaire && (
+        <p style={{ fontSize: '14px', color: T.textSec, textAlign: 'center', marginBottom: '8px' }}>
+          Le montant a été envoyé à {nomBeneficiaire}.
+        </p>
+      )}
+      <p style={{ fontSize: '13px', color: T.textTert, textAlign: 'center', marginBottom: '24px' }}>
+        Retour automatique dans {compte}s…
+      </p>
+      <button
+        onClick={() => navigate(`/cagnottes/${id}`, { replace: true })}
+        style={{ width: '100%', maxWidth: '320px', height: '52px', borderRadius: '14px', border: 'none', background: T.primary, color: T.surface, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+      >
+        Retour à la cagnotte
+      </button>
+    </div>
+  )
+}
 
 // ── Args passés via location.state ────────────────────────────────────────────
 export interface ReversementArgs {
@@ -98,25 +139,7 @@ export default function MobileReversement() {
 
   // ── Écran succès ──────────────────────────────────────────────────────────
   if (phase === 'succes') {
-    return (
-      <div style={{ background: T.surface, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
-        <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: `rgba(107,142,78,0.12)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-          <IconCheck />
-        </div>
-        <p style={{ fontSize: '22px', fontWeight: 700, color: T.textStrong, textAlign: 'center', marginBottom: '8px' }}>Reversement effectué</p>
-        {nomBeneficiaire && (
-          <p style={{ fontSize: '14px', color: T.textSec, textAlign: 'center', marginBottom: '32px' }}>
-            Le montant a été envoyé à {nomBeneficiaire}.
-          </p>
-        )}
-        <button
-          onClick={() => navigate(`/cagnottes/${id}`, { replace: true })}
-          style={{ width: '100%', maxWidth: '320px', height: '52px', borderRadius: '14px', border: 'none', background: T.primary, color: T.surface, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
-        >
-          Retour à la cagnotte
-        </button>
-      </div>
-    )
+    return <SuccesScreen id={id!} nomBeneficiaire={nomBeneficiaire} navigate={navigate} />
   }
 
   const enEnvoi = phase === 'envoi'
