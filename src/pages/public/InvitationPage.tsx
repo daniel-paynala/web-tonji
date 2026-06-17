@@ -17,6 +17,9 @@ import { requestOtp, verifyOtpLogin, verifyOtpSignup } from '@/lib/authApi'
 import { chargerInfoCagnottePublique, rejoindre } from '@/lib/cagnottesApi'
 import type { InfoCagnottePublique } from '@/lib/cagnottesApi'
 import { useAuthStore } from '@/store/authStore'
+import { useDeepLink } from '@/hooks/useDeepLink'
+import DeepLinkModal from '@/components/DeepLinkModal'
+import { deepLinkRejoindre, waRejoindre } from '@/lib/deeplink'
 
 // ── Palette Tonji — brand board 2026-06-12 (miroir de @/lib/tokens) ─────────
 const P = {
@@ -164,6 +167,12 @@ export default function InvitationPage() {
   const { token: ref = '' } = useParams<{ token: string }>()
   const navigate = useNavigate()
   const { login: storeLogin, isAuthenticated } = useAuthStore()
+
+  // Deep link — tente d'ouvrir l'app, affiche le modal si absente
+  const { showModal, dismissModal } = useDeepLink({
+    appUrl: deepLinkRejoindre(ref),
+    autoTry: !!ref,
+  })
 
   const [info, setInfo]           = useState<InfoCagnottePublique | null>(null)
   const [etape, setEtape]         = useState<Etape>('chargement')
@@ -326,6 +335,15 @@ export default function InvitationPage() {
   return (
     <div style={{ minHeight: '100dvh', background: P.surface, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px 48px' }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+
+      {/* Deep link modal — affiché si l'app n'est pas détectée */}
+      {showModal && (
+        <DeepLinkModal
+          title={info ? `Rejoindre « ${info.titre} »` : 'Rejoindre la cagnotte'}
+          waUrl={waRejoindre(ref)}
+          onStay={dismissModal}
+        />
+      )}
 
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', alignSelf: 'flex-start' }}>
