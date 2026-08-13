@@ -29,10 +29,9 @@ export default function DeepLinkModal({ title, waUrl, onStay }: Props) {
     <div style={styles.overlay}>
       <div style={styles.card}>
 
-        {/* Logo */}
+        {/* Logo — icône officielle Tonji (carte claire → icône verte plutôt que le wordmark clair) */}
         <div style={styles.logoRow}>
-          <div style={styles.logoCircle}>T</div>
-          <span style={styles.logoName}>Tonji</span>
+          <img src="/logo-tonji-icon.png" alt="Tonji" style={{ height: 44, width: 44, borderRadius: 12, display: 'block' }} />
         </div>
 
         {/* Titre */}

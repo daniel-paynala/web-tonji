@@ -6,12 +6,14 @@
  *             rejoindre()         → POST /api/mobile/cagnottes/:ref/rejoindre
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, animate } from 'framer-motion'
 import { T, grad } from '@/lib/tokens'
-import { listerMesCagnottes, rejoindre } from '@/lib/cagnottesApi'
+import { TONTINES_ACTIVES } from '@/lib/featureFlags'
+import { listerMesCagnottes, rejoindre, enModeration, badgeStatutValidation } from '@/lib/cagnottesApi'
 import type { Cagnotte } from '@/lib/cagnottesApi'
+import { ApiError } from '@/lib/api'
 import { useAuthStore, estCompteLight } from '@/store/authStore'
 
 // ── Formatage montant style Flutter ──────────────────────────────────────────
@@ -48,6 +50,13 @@ function valeurCollecte(c: Cagnotte): string {
   return fmtMontant(c.montantCollecte)
 }
 
+// ── estTerminee — miroir exact du getter Cagnotte.estTerminee (Flutter) ───────
+// Définitivement fermée : statut clôturé OU (tontine ET rotation complète).
+// Pour une cotisation, rotationTerminee ne suffit pas — seule la clôture compte.
+function estTermineeCagnotte(c: Cagnotte): boolean {
+  return c.statut === 'cloturee' || (c.type === 'tontine' && c.rotationTerminee)
+}
+
 // ── Icons SVG ─────────────────────────────────────────────────────────────────
 const IconAdd = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -66,9 +75,18 @@ const IconSync = () => (
     <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
   </svg>
 )
-const IconCelebration = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+// Bourse avec une pièce — symbole de la cagnotte (miroir du peintre Flutter
+// IconeBourse : grille 24×24 réduite à 0.68 autour du centre, trait fin 1.3).
+const IconeBourse = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round">
+    <g transform="translate(12,12) scale(0.68) translate(-12,-12)">
+      <path d="M8.1 11 C4.3 13.2 2.9 17 4.4 19.9 C5.9 22.6 14.9 22.6 16.4 19.9 C17.9 17 16.5 13.2 12.7 11 Z"/>
+      <path d="M7.3 11 H13.5"/>
+      <path d="M9.1 10.9 C8.6 9.6 8.2 9 7.5 8.6"/>
+      <path d="M11.7 10.9 C12.2 9.6 12.6 9 13.3 8.6"/>
+      <circle cx="18.3" cy="7.6" r="3.4"/>
+      <path d="M18.3 6.1 V9.1"/>
+    </g>
   </svg>
 )
 const IconGroup = () => (
@@ -93,16 +111,10 @@ const IconChevronDown = ({ open }: { open: boolean }) => (
     <polyline points="6 9 12 15 18 9"/>
   </svg>
 )
-const IconRefresh = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="23 4 23 10 17 10"/>
-    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
-  </svg>
-)
 
 // ── Badge rôle (_BadgeRole) ───────────────────────────────────────────────────
 function BadgeRole({ estGerant }: { estGerant: boolean }) {
-  const bg    = estGerant ? `rgba(15,76,92,0.10)`    : `rgba(201,123,74,0.14)`
+  const bg    = estGerant ? `rgba(10,104,71,0.10)`    : `rgba(232,168,48,0.14)`
   const color = estGerant ? T.primary                : T.accent
   return (
     <span style={{
@@ -111,7 +123,7 @@ function BadgeRole({ estGerant }: { estGerant: boolean }) {
       fontSize: '11px', fontWeight: 700, color,
     }}>
       {estGerant ? <IconPremium /> : <IconHandshake />}
-      {estGerant ? 'Gérant' : 'Cotiseur'}
+      {estGerant ? 'Organisateur' : 'Cotiseur'}
     </span>
   )
 }
@@ -121,7 +133,7 @@ function SkeletonCarte() {
   return (
     <div style={{
       background: T.surfaceEl, borderRadius: '20px',
-      border: `1px solid rgba(216,207,192,0.6)`,
+      border: `1px solid rgba(232,237,233,0.6)`,
       padding: '18px', marginBottom: '12px',
     }}>
       <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
@@ -149,10 +161,13 @@ function CarteCagnotte({ c, delay }: { c: Cagnotte; delay: number }) {
   const isTontine   = c.type === 'tontine'
   const estGerant   = c.role === 'gerant'
   const estCloturee = c.statut === 'cloturee'
-  const estTerminee = c.rotationTerminee && c.statut !== 'cloturee'
+  // Flutter : badge « Terminé » affiché via le else-if, donc uniquement
+  // quand estTerminee est vrai SANS être clôturée (sinon « Clôturée » prime).
+  const estTerminee = estTermineeCagnotte(c) && !estCloturee
 
+  // Flutter ajoute +1 pour compter le créateur dans le nombre d'inscrits.
   const participantsLabel = isTontine && c.nombreParticipants > 0
-    ? `${c.nombreInscrits}/${c.nombreParticipants}`
+    ? `${(c.nombreInscrits ?? 0) + 1}/${c.nombreParticipants}`
     : `${c.nombreParticipants}`
 
   return (
@@ -165,11 +180,11 @@ function CarteCagnotte({ c, delay }: { c: Cagnotte; delay: number }) {
       style={{
         background: T.surfaceEl,
         borderRadius: '20px',
-        border: `1px solid rgba(216,207,192,0.6)`,
+        border: `1px solid rgba(232,237,233,0.6)`,
         padding: '18px',
         cursor: 'pointer',
         userSelect: 'none',
-        boxShadow: `0 6px 18px rgba(15,76,92,0.05)`,
+        boxShadow: `0 6px 18px rgba(10,104,71,0.05)`,
         marginBottom: '12px',
       }}
     >
@@ -179,11 +194,11 @@ function CarteCagnotte({ c, delay }: { c: Cagnotte; delay: number }) {
         {/* Icône */}
         <div style={{
           width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
-          background: isTontine ? `rgba(15,76,92,0.10)` : `rgba(201,123,74,0.15)`,
+          background: isTontine ? `rgba(10,104,71,0.10)` : `rgba(232,168,48,0.15)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: isTontine ? T.primary : T.accent,
         }}>
-          {isTontine ? <IconSync /> : <IconCelebration />}
+          {isTontine ? <IconSync /> : <IconeBourse size={22} />}
         </div>
 
         {/* Titre + sous-titre */}
@@ -194,6 +209,24 @@ function CarteCagnotte({ c, delay }: { c: Cagnotte; delay: number }) {
           <p style={{ fontSize: '12px', color: T.textSec }}>
             {isTontine ? 'Tontine' : 'Cagnotte'} · N°{c.id}
           </p>
+          {/* Badge de modération pour les cagnottes publiques non encore approuvées
+              (en_attente / rejetee / suspendue) — miroir du bloc c.enModeration Flutter. */}
+          {enModeration(c) && (() => {
+            const enAttente = c.statutValidation === 'en_attente'
+            // En attente → ambre ; refusée/suspendue → corail (erreur).
+            const couleurFond = enAttente ? `rgba(196,138,26,0.12)` : `rgba(217,79,61,0.12)`
+            const couleurTexte = enAttente ? T.accentDark : T.error
+            return (
+              <span style={{
+                display: 'inline-block', marginTop: '6px',
+                padding: '3px 8px', borderRadius: '20px',
+                background: couleurFond, color: couleurTexte,
+                fontSize: '11px', fontWeight: 700,
+              }}>
+                {badgeStatutValidation(c.statutValidation)}
+              </span>
+            )
+          })()}
         </div>
 
         {/* Badges droite */}
@@ -249,25 +282,50 @@ function ModalRejoindre({ onClose, onSuccess }: { onClose: () => void; onSuccess
   const [enCours, setEnCours] = useState(false)
   const [erreur, setErreur]   = useState<string | null>(null)
 
+  // Rejoint puis navigue — miroir de _rejoindreEtNaviguer (Flutter) :
+  // gestion fine des statuts d'erreur (404 / 409 / 422 / autre).
   const handleRejoindre = async () => {
     const ref = code.trim()
-    if (ref.length < 4) return
+    // Flutter exige 6 chiffres dans la bottom sheet de saisie.
+    if (ref.length < 6) return
     setEnCours(true)
     setErreur(null)
+    let naviguer = true
     try {
       await rejoindre(ref)
-      onClose()
-      onSuccess()
-      navigate(`/cagnottes/${ref}`)
+      onSuccess() // invalide la liste (ref.invalidate(mesCagnottesProvider))
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erreur lors de la connexion'
-      setErreur(msg)
+      if (e instanceof ApiError) {
+        switch (e.status) {
+          case 404:
+            // Cagnotte introuvable — on reste sur la feuille, message inline.
+            setErreur('Cagnotte introuvable.')
+            naviguer = false
+            break
+          case 422:
+            // Cagnotte complète — on navigue quand même vers le détail.
+            break
+          case 409:
+            // Déjà inscrit — on navigue silencieusement vers le détail.
+            break
+          default:
+            setErreur(e.message)
+            naviguer = false
+        }
+      } else {
+        setErreur(e instanceof Error ? e.message : 'Erreur lors de la connexion')
+        naviguer = false
+      }
     } finally {
       setEnCours(false)
     }
+    if (naviguer) {
+      onClose()
+      navigate(`/cagnottes/${ref}`)
+    }
   }
 
-  const pret = code.trim().length >= 4 && !enCours
+  const pret = code.trim().length >= 6 && !enCours
 
   return (
     <motion.div
@@ -284,7 +342,7 @@ function ModalRejoindre({ onClose, onSuccess }: { onClose: () => void; onSuccess
         <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: T.border, margin: '0 auto 20px' }} />
         <p style={{ fontSize: '20px', fontWeight: 800, color: T.textStrong, marginBottom: '6px' }}>Rejoindre une cagnotte</p>
         <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '20px' }}>
-          Entrez le code à 6 chiffres partagé par le gérant.
+          Entrez le code de la cagnotte partagé par l'organisateur.
         </p>
         <input
           type="number"
@@ -332,13 +390,29 @@ function ModalRejoindre({ onClose, onSuccess }: { onClose: () => void; onSuccess
 function CarteHero({ total, nombreActives, onRejoindre, onCreer }: {
   total: number; nombreActives: number; onRejoindre: () => void; onCreer: () => void
 }) {
-  const navigate = useNavigate()
-  const s = Math.round(total).toString()
-  let formatted = ''
-  for (let i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 === 0) formatted += ' '
-    formatted += s[i]
-  }
+  // Compteur anime du total -- miroir de _MontantAnime (Flutter) :
+  // deroule de 0 vers `total` en 1,1 s avec une courbe easeOutCubic.
+  const montantRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const node = montantRef.current
+    if (!node) return
+    // Formatage : espace tous les 3 chiffres depuis la droite (separateur milliers).
+    const formate = (v: number): string => {
+      const s = Math.round(v).toString()
+      let out = ''
+      for (let i = 0; i < s.length; i++) {
+        if (i > 0 && (s.length - i) % 3 === 0) out += ' '
+        out += s[i]
+      }
+      return out
+    }
+    const controls = animate(0, total, {
+      duration: 1.1,
+      ease: [0.215, 0.61, 0.355, 1], // easeOutCubic
+      onUpdate: (v) => { node.textContent = formate(v) },
+    })
+    return () => controls.stop()
+  }, [total])
 
   return (
     <motion.div
@@ -346,29 +420,36 @@ function CarteHero({ total, nombreActives, onRejoindre, onCreer }: {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       style={{
-        background: grad.primary, borderRadius: '28px',
-        padding: '24px 24px 22px',
+        background: grad.primary, borderRadius: '0 0 32px 32px',
+        padding: '28px 24px 24px',
         position: 'relative', overflow: 'hidden',
-        boxShadow: '0 14px 28px rgba(15,76,92,0.35)',
       }}
     >
       {/* Cercle accent */}
       <div style={{
         position: 'absolute', width: '140px', height: '140px', borderRadius: '50%',
-        background: `rgba(201,123,74,0.18)`, top: '-40px', right: '-30px', pointerEvents: 'none',
+        background: `rgba(232,168,48,0.18)`, top: '-40px', right: '-30px', pointerEvents: 'none',
       }} />
 
+      {/* Marque (vrai logo) + slogan de lancement « Cagnotte d'abord » (P2 #7) */}
+      <div style={{ marginBottom: '16px' }}>
+        <img src="/logo-tonji-wordmark.png" alt="Tonji" style={{ height: 64, width: 'auto', display: 'block' }} />
+        <p style={{ fontSize: '13px', color: `rgba(246,247,244,0.85)`, fontWeight: 500, marginTop: '2px' }}>
+          Cotisez simplement.
+        </p>
+      </div>
+
       {/* Label */}
-      <p style={{ fontSize: '12px', color: `rgba(244,236,224,0.85)`, letterSpacing: '1.5px', fontWeight: 600, marginBottom: '6px' }}>
+      <p style={{ fontSize: '11px', color: `rgba(255,255,255,0.65)`, letterSpacing: '1.8px', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' }}>
         Total collecté
       </p>
 
       {/* Montant + FCFA */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', marginBottom: '4px' }}>
-        <span style={{ fontSize: '36px', fontWeight: 800, color: T.surface, letterSpacing: '-1.2px', lineHeight: 1.1 }}>
-          {formatted}
+        <span ref={montantRef} style={{ fontSize: '36px', fontWeight: 800, color: T.surface, letterSpacing: '-1.2px', lineHeight: 1.1 }}>
+          0
         </span>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: `rgba(244,236,224,0.80)`, letterSpacing: '1px', paddingBottom: '6px' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: `rgba(246,247,244,0.80)`, letterSpacing: '1px', paddingBottom: '6px' }}>
           FCFA
         </span>
       </div>
@@ -376,34 +457,39 @@ function CarteHero({ total, nombreActives, onRejoindre, onCreer }: {
       {/* Indicateur actives */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '22px' }}>
         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: T.accent, flexShrink: 0 }} />
-        <span style={{ fontSize: '13px', color: `rgba(244,236,224,0.90)`, fontWeight: 500 }}>
+        <span style={{ fontSize: '13px', color: `rgba(246,247,244,0.90)`, fontWeight: 500 }}>
           {nombreActives} {nombreActives > 1 ? 'cagnottes actives' : 'cagnotte active'}
         </span>
       </div>
 
-      {/* Boutons */}
-      <button
-        onClick={onCreer}
-        style={{
-          width: '100%', height: '52px', borderRadius: '14px', border: 'none',
-          background: T.accent, color: T.textStrong, fontSize: '16px', fontWeight: 700,
-          letterSpacing: '0.3px', cursor: 'pointer', fontFamily: 'inherit',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px',
-        }}
-      >
-        <IconAdd /> Créer une cagnotte
-      </button>
-      <button
-        onClick={onRejoindre}
-        style={{
-          width: '100%', height: '46px', borderRadius: '14px', cursor: 'pointer',
-          background: 'transparent', border: `1px solid rgba(244,236,224,0.50)`,
-          color: T.surface, fontSize: '15px', fontWeight: 600, fontFamily: 'inherit',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-        }}
-      >
-        <IconLogin /> Rejoindre une cagnotte
-      </button>
+      {/* Boutons en ligne (miroir _EnTeteHero Flutter : Créer + Rejoindre côte à côte) */}
+      <div style={{ display: 'flex', gap: '10px' }}>
+        {/* Créer (CTA principal doré) */}
+        <button
+          onClick={onCreer}
+          style={{
+            flex: 1, height: '50px', borderRadius: '14px', border: 'none',
+            background: T.accent, color: T.textStrong, fontSize: '15px', fontWeight: 700,
+            letterSpacing: '0.3px', cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+          }}
+        >
+          <IconAdd /> Créer une cagnotte
+        </button>
+        {/* Rejoindre une cagnotte par code — parcours clé du lancement, toujours actif (P1 #2). */}
+        <button
+          onClick={onRejoindre}
+          style={{
+            flex: 1, height: '50px', borderRadius: '14px', cursor: 'pointer',
+            background: 'transparent', border: `1px solid rgba(246,247,244,0.45)`,
+            color: T.surface, fontSize: '14px', fontWeight: 600, fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            whiteSpace: 'nowrap', overflow: 'hidden',
+          }}
+        >
+          <IconLogin /> Rejoindre une cagnotte
+        </button>
+      </div>
     </motion.div>
   )
 }
@@ -417,7 +503,7 @@ function SectionHeader({ title, count, muted }: { title: string; count: number; 
       </p>
       <div style={{
         padding: '4px 10px', borderRadius: '8px',
-        background: T.surfaceEl, border: `1px solid rgba(216,207,192,0.6)`,
+        background: T.surfaceEl, border: `1px solid rgba(232,237,233,0.6)`,
       }}>
         <span style={{ fontSize: '12px', fontWeight: 700, color: T.textSec }}>{count}</span>
       </div>
@@ -425,50 +511,100 @@ function SectionHeader({ title, count, muted }: { title: string; count: number; 
   )
 }
 
-// ── État vide ─────────────────────────────────────────────────────────────────
-function EtatVide({ onCreer }: { onCreer: () => void }) {
+// ── Icône erreur (Icons.error_outline) — état erreur ──────────────────────────
+const IconError = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+)
+
+// ── État vide (_EtatVide) ─────────────────────────────────────────────────────
+// Miroir exact du Flutter : cercle vert, tirelire, titre + sous-titre, sans bouton.
+function EtatVide() {
   return (
-    <div style={{ textAlign: 'center', padding: '48px 16px' }}>
-      <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎯</div>
-      <p style={{ fontSize: '18px', fontWeight: 700, color: T.textStrong, marginBottom: '8px' }}>
-        Aucune cagnotte
-      </p>
-      <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '24px' }}>
-        Créez votre première tontine ou rejoignez-en une.
-      </p>
-      <button
-        onClick={onCreer}
-        style={{
-          height: '48px', padding: '0 24px', borderRadius: '14px', border: 'none',
-          background: T.primary, color: T.surface, fontSize: '15px', fontWeight: 700,
-          fontFamily: 'inherit', cursor: 'pointer',
-        }}
-      >
-        Créer une cagnotte
-      </button>
+    <div style={{ padding: '32px 0' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <div style={{
+          width: '80px', height: '80px', borderRadius: '50%',
+          background: `rgba(10,104,71,0.07)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: T.primary,
+        }}>
+          <IconeBourse size={36} />
+        </div>
+        <div style={{ height: '16px' }} />
+        <p style={{ fontSize: '16px', fontWeight: 600, color: T.textStrong }}>
+          Aucune cagnotte pour l'instant
+        </p>
+        <div style={{ height: '4px' }} />
+        <p style={{ fontSize: '14px', color: T.textSec }}>
+          Créez votre première cagnotte pour commencer.
+        </p>
+      </div>
     </div>
   )
 }
 
-// ── État erreur ───────────────────────────────────────────────────────────────
-function EtatErreur({ message, onRetry }: { message: string; onRetry: () => void }) {
+// ── État erreur (_MessageErreur) ──────────────────────────────────────────────
+// Miroir exact du Flutter : icône d'erreur, titre, message centré, sans bouton.
+function EtatErreur({ message }: { message: string }) {
   return (
-    <div style={{ textAlign: 'center', padding: '48px 16px' }}>
-      <p style={{ fontSize: '18px', fontWeight: 700, color: T.textStrong, marginBottom: '8px' }}>
-        Impossible de charger
-      </p>
-      <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '24px' }}>{message}</p>
-      <button
-        onClick={onRetry}
-        style={{
-          height: '48px', padding: '0 24px', borderRadius: '14px', border: 'none',
-          background: T.primary, color: T.surface, fontSize: '15px', fontWeight: 700,
-          fontFamily: 'inherit', cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: '8px',
-        }}
-      >
-        <IconRefresh /> Réessayer
-      </button>
+    <div style={{ padding: '32px 20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <span style={{ color: T.error }}><IconError /></span>
+        <div style={{ height: '8px' }} />
+        <p style={{ fontSize: '16px', fontWeight: 600, color: T.textStrong }}>
+          Impossible de charger vos cagnottes
+        </p>
+        <div style={{ height: '4px' }} />
+        <p style={{ fontSize: '12px', color: T.textSec }}>
+          {message}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Teaser tontine (P2 #6) — réplique fidèle du _TeaserTontine Flutter ─────────
+// Fond vert dégradé, halos décoratifs, badge doré « BIENTÔT », icône de rotation
+// animée (chacun son tour) et balayage brillant (shimmer) périodique.
+function TeaserTontine() {
+  return (
+    <div style={{
+      position: 'relative', overflow: 'hidden', borderRadius: '20px',
+      background: 'linear-gradient(135deg, #064D34 0%, #0A6847 55%, #1A9060 100%)',
+      boxShadow: '0 8px 20px rgba(10,104,71,0.28)',
+    }}>
+      {/* Halos décoratifs (profondeur) */}
+      <div style={{ position: 'absolute', top: -28, right: -20, width: 120, height: 120, borderRadius: '50%', background: 'rgba(232,168,48,0.14)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -40, left: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(26,144,96,0.30)', pointerEvents: 'none' }} />
+      {/* Balayage brillant périodique */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.12) 50%, transparent 65%)',
+        transform: 'translateX(-120%)', animation: 'teaserShimmer 4.1s linear infinite',
+      }} />
+      {/* Contenu */}
+      <div style={{ position: 'relative', padding: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+          background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ color: '#F5D078', display: 'inline-flex', animation: 'spin 4.2s linear infinite' }}><IconSync /></span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{
+            display: 'inline-block', padding: '3px 8px', borderRadius: '20px',
+            background: 'rgba(232,168,48,0.22)', color: '#F5D078',
+            fontSize: '10px', fontWeight: 800, letterSpacing: '1.2px',
+          }}>BIENTÔT</span>
+          <p style={{ fontSize: '17px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.15, marginTop: '7px' }}>La tontine arrive</p>
+          <p style={{ fontSize: '12px', lineHeight: 1.35, color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>L'épargne à tour de rôle, entre proches.</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -506,8 +642,10 @@ export default function MobileHome() {
 
   useEffect(() => { charger() }, [charger])
 
-  const enCours   = cagnottes.filter(c => c.statut !== 'cloturee' && !c.rotationTerminee)
-  const terminees = cagnottes.filter(c => c.statut === 'cloturee' || c.rotationTerminee)
+  // Tri identique au Flutter _ContenuHome : actives (non terminées) puis
+  // terminées triées par date de création décroissante.
+  const enCours   = cagnottes.filter(c => !estTermineeCagnotte(c))
+  const terminees = cagnottes.filter(estTermineeCagnotte)
     .sort((a, b) => b.dateCreation.localeCompare(a.dateCreation))
 
   const totalGlobal = cagnottes.reduce((s, c) => s + c.montantCollecte, 0)
@@ -515,19 +653,20 @@ export default function MobileHome() {
   const restantes   = enCours.length - 6
 
   return (
-    <div style={{ background: T.surface, minHeight: '100%', paddingBottom: '80px' }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      <div style={{ padding: '8px 20px 28px' }}>
+    <div style={{ background: T.surface, minHeight: '100%' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes teaserShimmer { 0%,63% { transform: translateX(-120%); opacity: 0 } 66% { opacity: 1 } 100% { transform: translateX(130%); opacity: 0 } }`}</style>
 
-        {/* ── Hero ──────────────────────────────────────────────────────── */}
-        <CarteHero
-          total={totalGlobal}
-          nombreActives={enCours.length}
-          onRejoindre={() => setShowRejoindre(true)}
-          onCreer={handleCreer}
-        />
+      {/* ── Hero plein cadre — en-tête vert pleine largeur, coins bas arrondis
+          (miroir _EnTeteHero Flutter : header fixe, pas de marge blanche). ── */}
+      <CarteHero
+        total={totalGlobal}
+        nombreActives={enCours.length}
+        onRejoindre={() => setShowRejoindre(true)}
+        onCreer={handleCreer}
+      />
 
-        <div style={{ height: '28px' }} />
+      {/* ── Contenu (liste + teaser) avec marge latérale ──────────────────── */}
+      <div style={{ padding: '24px 20px 32px' }}>
 
         {/* ── Contenu ───────────────────────────────────────────────────── */}
         {chargement ? (
@@ -536,9 +675,9 @@ export default function MobileHome() {
             {[0, 1, 2].map(i => <SkeletonCarte key={i} />)}
           </div>
         ) : erreur ? (
-          <EtatErreur message={erreur} onRetry={charger} />
+          <EtatErreur message={erreur} />
         ) : cagnottes.length === 0 ? (
-          <EtatVide onCreer={handleCreer} />
+          <EtatVide />
         ) : (
           <>
             {enCours.length > 0 && (
@@ -577,6 +716,13 @@ export default function MobileHome() {
               </div>
             )}
           </>
+        )}
+
+        {/* ── Teaser tontine (P2 #6) — la tontine annoncée comme promesse ──── */}
+        {!chargement && !erreur && !TONTINES_ACTIVES && (
+          <div style={{ marginTop: '28px' }}>
+            <TeaserTontine />
+          </div>
         )}
       </div>
 

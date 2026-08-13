@@ -1,169 +1,161 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
 import { useMobile } from '@/hooks/useMobile'
 import MobileConnexion from '@/pages/mobile/MobileConnexion'
+import { DEEPLINK } from '@/lib/deeplink'
+import { requestOtp, verifyOtpLogin } from '@/lib/authApi'
+import { ApiError } from '@/lib/api'
+import { T } from '@/lib/tokens'
 
-// Gestion de l'indicatif + numéro séparés
+// ─────────────────────────────────────────────────────────────────────────────
+// ConnexionPage (desktop) — MÊME process que MobileConnexion (le mobile web est
+// la référence). numéro → requestOtp('login') → soit écran OTP (numéro inscrit),
+// soit modale « Numéro non inscrit » (rectifier / créer un compte). Puis OTP →
+// verifyOtpLogin → vrai compte. AUCUN mock. Sur mobile → écran mobile.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const schema = z.object({
-  indicatif: z.string().min(1, 'L\'indicatif est obligatoire'),
-  numero: z.string()
-    .min(1, 'Le numéro est obligatoire')
-    .regex(/^0[0-9]{8}$/, 'Le numéro doit commencer par 0 et contenir 9 chiffres'),
-  otp: z.string()
-    .min(4, 'L\'OTP doit contenir au moins 4 chiffres')
-    .max(6, 'L\'OTP ne doit pas dépasser 6 chiffres')
-    .regex(/^[0-9]+$/, 'L\'OTP doit contenir uniquement des chiffres'),
-})
+const INDICATIF = '+241'
+const COOLDOWN_INIT = 60
 
-type FormData = z.infer<typeof schema>
-
-// ─── Icônes ───────────────────────────────────────────────────────────────────
-
-const IconPhone = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="5" y="2" width="14" height="20" rx="2"/>
-    <line x1="12" y1="18" x2="12.01" y2="18"/>
-  </svg>
-)
-
-const IconLock = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2"/>
-    <path d="M7 11V7a5 5 0 0110 0v4"/>
-  </svg>
-)
-
-const IconEye = ({ open }: { open: boolean }) => open ? (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
-  </svg>
-) : (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-    <line x1="1" y1="1" x2="23" y2="23"/>
-  </svg>
-)
-
-const IconAlert = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
-  </svg>
-)
-
-// ─── Icônes canaux ───────────────────────────────────────────────────────────
-const IconUSSD = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="4" />
-    <text x="12" y="16" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">USSD</text>
-  </svg>
-)
-
-const IconWeb = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12h18" />
-    <path d="M3 6h18" />
-    <path d="M3 18h18" />
-  </svg>
-)
-
-const IconWhatsApp = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a5 5 0 01-3 3l-3 1 1-3a5 5 0 01-7-7 5 5 0 017 7l3-1z" />
-    <path d="M16 11a2 2 0 11-4 0 2 2 0 014 0z" />
-  </svg>
-)
-
-// ─── Composant ───────────────────────────────────────────────────────────────-
+// ── Saisie OTP 6 cases ────────────────────────────────────────────────────────
+function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([])
+  const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !inputsRef.current[i]?.value && i > 0) inputsRef.current[i - 1]?.focus()
+  }
+  const handleChange = (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const digit = e.target.value.replace(/\D/g, '').slice(-1)
+    const arr = value.split('')
+    arr[i] = digit
+    onChange(arr.join(''))
+    if (digit && i < 5) inputsRef.current[i + 1]?.focus()
+  }
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    onChange(text.padEnd(6, ''))
+    inputsRef.current[Math.min(text.length, 5)]?.focus()
+    e.preventDefault()
+  }
+  return (
+    <div className="flex gap-2 justify-center">
+      {Array.from({ length: 6 }, (_, i) => (
+        <input
+          key={i}
+          ref={el => { inputsRef.current[i] = el }}
+          type="text" inputMode="numeric" maxLength={1}
+          value={value[i] || ''}
+          onChange={e => handleChange(i, e)}
+          onKeyDown={e => handleKey(i, e)}
+          onPaste={handlePaste}
+          className="text-center outline-none transition-all"
+          style={{
+            width: '48px', height: '58px', borderRadius: '14px',
+            fontSize: '24px', fontWeight: 800, color: T.textStrong, caretColor: T.primary,
+            border: `${value[i] ? '2px' : '1.2px'} solid ${value[i] ? T.primary : T.border}`,
+            background: T.surfaceEl, fontFamily: 'inherit',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
 export default function ConnexionPage() {
   const isMobile = useMobile()
   const navigate = useNavigate()
-  const login    = useAuthStore((s) => s.login)
+  const login = useAuthStore(s => s.login)
+  const nextUrl = new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
 
-  const [globalError, setGlobalError] = useState('')
-  const [failCount,   setFailCount]   = useState(0)
-  const [blocked,     setBlocked]     = useState(false)
-  const [otpSent,     setOtpSent]     = useState(false)
-  const [otpCode,     setOtpCode]     = useState('')
-  const [otpCountdown, setOtpCountdown] = useState(0)
+  const [phase, setPhase] = useState<'welcome' | 'otp'>('welcome')
+  const [numero, setNumero] = useState('')
+  const [otp, setOtp] = useState('')
+  const [erreurChamp, setErreurChamp] = useState<string | null>(null)
+  const [erreurOtp, setErreurOtp] = useState<string | null>(null)
+  const [envoiEnCours, setEnvoiEnCours] = useState(false)
+  const [verifEnCours, setVerifEnCours] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
+  const [modaleNonInscrit, setModaleNonInscrit] = useState<{ phoneE164: string } | null>(null)
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, watch } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      indicatif: '+241',
-      otp: '',
-    },
-  })
+  useEffect(() => {
+    if (phase !== 'otp' || cooldown <= 0) return
+    const t = setInterval(() => setCooldown(c => c - 1), 1000)
+    return () => clearInterval(t)
+  }, [phase, cooldown])
 
-  const numeroValue = watch('numero')
-  const indicatifValue = watch('indicatif')
-
-  const onSubmit = async (data: FormData) => {
-    if (blocked) return
-    await new Promise(r => setTimeout(r, 600))
-
-    const telephone = `${data.indicatif}${data.numero}`
-    const valid = telephone === '+241077456777' && data.otp === '1234'
-
-    if (!valid) {
-      const newCount = failCount + 1
-      setFailCount(newCount)
-      if (newCount >= 5) {
-        setBlocked(true)
-        setGlobalError('Compte temporairement bloqué après 5 tentatives. Réessayez dans 15 min.')
-        setTimeout(() => { setBlocked(false); setFailCount(0); setGlobalError('') }, 15 * 60 * 1000)
-      } else {
-        setGlobalError('OTP incorrect. Veuillez vérifier et réessayer.')
+  // ── Étape numéro → requestOtp('login') ───────────────────────────────────────
+  const valider = async () => {
+    if (!/^0\d{8}$/.test(numero.trim())) {
+      setErreurOtp(null); setModaleNonInscrit(null)
+      setErreurChamp('Format : 0 suivi de 8 chiffres')
+      return
+    }
+    setErreurChamp(null)
+    setEnvoiEnCours(true)
+    try {
+      const res = await requestOtp(INDICATIF, numero.trim(), 'login')
+      setEnvoiEnCours(false)
+      if (!res.user_exists) {
+        // Numéro inconnu → modale rectifier / créer (pas de SMS gaspillé).
+        setModaleNonInscrit({ phoneE164: res.phone })
+        return
       }
-      return
-    }
-
-    setGlobalError('')
-    login(
-      { id: 'demo-user', nom: 'Obame', prenom: 'Jean-Pierre', telephone, typeClient: 'particulier' },
-      'demo-token-' + Date.now()
-    )
-    navigate('/dashboard')
-  }
-
-  const handleSendOtp = async () => {
-    if (!numeroValue || !indicatifValue) {
-      setGlobalError('Veuillez entrer votre numéro de téléphone.')
-      return
-    }
-
-    setGlobalError('')
-    setOtpSent(true)
-    setOtpCountdown(60)
-
-    const interval = setInterval(() => {
-      setOtpCountdown(c => {
-        if (c <= 1) {
-          clearInterval(interval)
-          return 0
-        }
-        return c - 1
-      })
-    }, 1000)
-
-    console.log(`OTP envoyé à ${indicatifValue}${numeroValue}`)
-  }
-
-  const handleResendOtp = () => {
-    if (otpCountdown === 0) {
-      handleSendOtp()
+      setOtp(''); setErreurOtp(null)
+      setPhase('otp'); setCooldown(COOLDOWN_INIT)
+    } catch (e) {
+      setEnvoiEnCours(false)
+      setErreurChamp(e instanceof ApiError ? e.message : 'Erreur réseau, réessayez.')
     }
   }
+
+  const creerDepuisModale = () => {
+    setModaleNonInscrit(null)
+    navigate('/inscription', { state: { indicatif: INDICATIF, numero: numero.trim() } })
+  }
+
+  // ── Vérification OTP → verifyOtpLogin ────────────────────────────────────────
+  const verifier = async () => {
+    if (otp.length !== 6) { setErreurOtp('Code à 6 chiffres requis'); return }
+    setErreurOtp(null)
+    setVerifEnCours(true)
+    try {
+      const session = await verifyOtpLogin(INDICATIF, numero.trim(), otp)
+      login(
+        {
+          id: session.user.id,
+          nom: session.user.nom,
+          prenom: session.user.prenom,
+          telephone: session.user.numero,
+          typeClient: session.user.type_client as 'particulier' | 'entreprise' | 'marchand',
+          dateNaissance: session.user.date_naissance,
+          email: session.user.email,
+          adresse: session.user.adresse,
+          sexe: session.user.sexe,
+          kycValide: session.user.kyc_valide,
+        },
+        session.token,
+      )
+      navigate(nextUrl, { replace: true })
+    } catch (e) {
+      setVerifEnCours(false)
+      setOtp('')
+      setErreurOtp(e instanceof ApiError ? e.message : 'Code incorrect. Vérifiez le code reçu et réessayez.')
+    }
+  }
+
+  const renvoyerCode = async () => {
+    if (cooldown > 0 || verifEnCours) return
+    try {
+      await requestOtp(INDICATIF, numero.trim(), 'login')
+      setCooldown(COOLDOWN_INIT)
+    } catch {
+      setErreurOtp("Impossible d'envoyer le code. Réessayez.")
+    }
+  }
+
+  const retourWelcome = () => { setPhase('welcome'); setOtp(''); setErreurOtp(null) }
 
   if (isMobile) return <MobileConnexion />
 
@@ -172,239 +164,174 @@ export default function ConnexionPage() {
 
       {/* ── Panneau gauche — branding ── */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden">
-        {/* Cercles décoratifs */}
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
 
-        {/* Logo */}
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-accent flex items-center justify-center shadow-glow">
-            <span className="text-white font-display font-bold text-base">T</span>
-          </div>
-          <span className="font-display font-bold text-white text-xl tracking-tight">Tonji</span>
+        <div className="relative z-10">
+          <img src="/logo-tonji-wordmark-trim.png" alt="Tonji" className="h-9 w-auto" />
         </div>
 
-        {/* Texte central */}
         <div className="relative z-10">
           <h1 className="font-display font-bold text-white text-4xl leading-tight mb-6">
             Gérez vos tontines<br />
             <span className="text-gradient">en toute confiance.</span>
           </h1>
           <p className="text-white/45 text-sm leading-relaxed max-w-xs">
-            Plateforme sécurisée de tontines et cagnottes. Simple, transparente et accessible à tous les groupes de tontines.
+            Plateforme de tontines et cagnottes. Simple, transparente et accessible à tous les groupes.
           </p>
         </div>
 
-        {/* Stats modernisées (la carte '2%' a été retirée) */}
+        {/* Téléchargement de l'app — Android & iOS */}
         <div className="relative z-10 mt-6">
           <ul className="grid grid-cols-2 gap-3">
-            {[
-              { val: 'USSD', label: 'Paiement sans internet' },
-              { val: '100%', label: 'Sécurisé & transparent' },
-            ].map((s) => (
-              <li key={s.val} className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/6">
-                <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-gradient-to-br from-accent to-primary text-white font-display font-bold text-sm shadow-sm">
-                  {s.val}
+            <li>
+              <a href={DEEPLINK.playStoreUrl} target="_blank" rel="noopener noreferrer" aria-label="Télécharger Tonji sur Google Play"
+                className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors">
+                <span className="flex items-center justify-center w-11 h-11 rounded-lg bg-white shrink-0">
+                  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 3.8L16.4 12 4 20.2V3.8z" fill="#14202E" />
+                    <path d="M4 3.8l7.1 8.2L4 20.2" fill="#0A6847" />
+                    <path d="M4 3.8l7.1 8.2 5.3-3.4" fill="#C48A1A" />
+                    <path d="M4 20.2l7.1-8.2 5.3 3.4" fill="#E8A830" />
+                  </svg>
+                </span>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-[10px] text-white/60">Disponible sur</span>
+                  <span className="text-sm text-white font-semibold">Google Play</span>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm text-white font-semibold leading-tight">{s.label}</span>
+              </a>
+            </li>
+            <li>
+              <a href={DEEPLINK.appStoreUrl} target="_blank" rel="noopener noreferrer" aria-label="Télécharger Tonji sur l'App Store"
+                className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors">
+                <span className="flex items-center justify-center w-11 h-11 rounded-lg bg-white shrink-0">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#14202E" aria-hidden="true">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                  </svg>
+                </span>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-[10px] text-white/60">Télécharger sur</span>
+                  <span className="text-sm text-white font-semibold">App Store</span>
                 </div>
-              </li>
-            ))}
+              </a>
+            </li>
           </ul>
         </div>
       </div>
 
       {/* ── Panneau droit — formulaire ── */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="w-full max-w-md"
-        >
-          {/* Logo mobile */}
-          <div className="flex items-center gap-3 mb-10 lg:hidden">
-            <div className="w-9 h-9 rounded-xl bg-gradient-accent flex items-center justify-center shadow-glow">
-              <span className="text-white font-display font-bold text-sm">T</span>
-            </div>
-            <span className="font-display font-bold text-white text-lg tracking-tight">Tonji</span>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="w-full max-w-md">
+
+          <div className="mb-10 lg:hidden">
+            <img src="/logo-tonji-wordmark-trim.png" alt="Tonji" className="h-8 w-auto" />
           </div>
 
-          {/* Card formulaire */}
-          <div className="bg-surface-elevated/95 backdrop-blur-sm rounded-[28px] border border-border/60 shadow-2xl p-8">
-            <div className="mb-8">
-              <h2 className="font-display font-bold text-text-strong text-2xl tracking-tight mb-1">
-                Connexion
-              </h2>
-              <p className="text-text-tertiary text-sm max-w-xl leading-relaxed">
-                Connectez-vous avec votre numéro de téléphone et votre mot de passe pour accéder à votre espace de gestion de tontines.
-              </p>
-            </div>
+          <div className="rounded-[28px] border shadow-2xl p-8" style={{ background: T.surfaceEl, borderColor: `${T.border}99` }}>
 
-            {/* Erreur globale */}
-            {globalError && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                role="alert"
-                className="mb-6 flex items-start gap-3 rounded-xl bg-error/8 border border-error/20 px-4 py-3"
-              >
-                <span className="text-error mt-0.5 flex-shrink-0"><IconAlert /></span>
-                <p className="text-sm text-error leading-snug">{globalError}</p>
-              </motion.div>
-            )}
+            <AnimatePresence mode="wait">
+              {/* ── Étape numéro ── */}
+              {phase === 'welcome' && (
+                <motion.div key="welcome" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.2 }}>
+                  <h2 className="font-display font-bold text-2xl tracking-tight mb-1" style={{ color: T.textStrong }}>Connexion</h2>
+                  <p className="text-sm leading-relaxed mb-7" style={{ color: T.textTert }}>
+                    Entrez votre numéro Mobile Money — un code vous sera envoyé par SMS.
+                  </p>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
-
-              {/* Téléphone */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  Numéro de téléphone <span className="text-accent">*</span>
-                </label>
-                <div className="grid grid-cols-[120px_1fr] gap-3">
-                  <label className="relative block">
-                    <span className="sr-only">Indicatif</span>
-                    <select
-                      aria-invalid={!!errors.indicatif}
-                      className={[
-                        'w-full appearance-none rounded-xl px-4 py-3 text-sm text-text-strong bg-surface',
-                        'border transition-all duration-150 placeholder:text-text-tertiary',
-                        'focus:outline-none focus:ring-2 focus:ring-offset-0',
-                        errors.indicatif
-                          ? 'border-error/50 bg-red-50/30 focus:ring-error/20 focus:border-error/60'
-                          : 'border-border hover:border-border-strong focus:border-primary/50 focus:ring-primary/15',
-                      ].join(' ')}
-                      {...register('indicatif')}
-                    >
-                      <option value="+241">Gabon +241</option>
-                      <option value="+33">France +33</option>
-                      <option value="+225">Côte d'Ivoire +225</option>
-                      <option value="+237">Cameroun +237</option>
-                      <option value="+229">Bénin +229</option>
-                    </select>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary">
-                      <IconPhone />
-                    </span>
+                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textSec }}>Numéro de téléphone</label>
+                  <div className="mt-1.5 flex gap-2">
+                    <div className="flex items-center rounded-[14px] px-3 shrink-0 text-sm font-bold" style={{ height: '52px', background: T.surfaceEl, border: `1.2px solid ${T.border}`, color: T.textStrong }}>
+                      🇬🇦 +241
+                    </div>
                     <input
-                      type="tel"
-                      autoComplete="tel"
-                      placeholder="077 45 67 77"
-                      aria-invalid={!!errors.numero}
-                      className={[
-                        'w-full pl-11 pr-4 py-3.5 rounded-xl text-sm text-text-strong bg-surface',
-                        'border transition-all duration-150 placeholder:text-text-tertiary',
-                        'focus:outline-none focus:ring-2 focus:ring-offset-0',
-                        errors.numero
-                          ? 'border-error/50 bg-red-50/30 focus:ring-error/20 focus:border-error/60'
-                          : 'border-border hover:border-border-strong focus:border-primary/50 focus:ring-primary/15',
-                      ].join(' ')}
-                      {...register('numero')}
+                      type="tel" inputMode="numeric" autoComplete="tel"
+                      value={numero}
+                      onChange={e => { setNumero(e.target.value.replace(/\D/g, '').slice(0, 9)); setErreurChamp(null) }}
+                      onKeyDown={e => { if (e.key === 'Enter' && !envoiEnCours) valider() }}
+                      placeholder="0x xx xx xx xx"
+                      style={{ width: '100%', height: '52px', borderRadius: '14px', padding: '0 16px', border: `1.2px solid ${erreurChamp ? T.error : T.border}`, background: T.surfaceEl, fontSize: '15px', fontWeight: 600, color: T.textStrong, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                     />
                   </div>
-                </div>
-                {(errors.indicatif || errors.numero) && (
-                  <p role="alert" className="flex items-center gap-1.5 text-xs text-error font-medium">
-                    <span className="w-1 h-1 rounded-full bg-error inline-block" />
-                    {errors.indicatif?.message || errors.numero?.message}
-                  </p>
-                )}
-              </div>
 
-              {/* Mot de passe */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  Code OTP <span className="text-accent">*</span>
-                </label>
-                
-                {!otpSent && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    className="w-full"
-                    onClick={handleSendOtp}
-                    disabled={!numeroValue}
-                  >
-                    Envoyer un code OTP
+                  {erreurChamp && (
+                    <div className="mt-4 px-3.5 py-2.5 rounded-xl" style={{ background: 'rgba(217,79,61,0.10)', border: '1px solid rgba(217,79,61,0.30)' }}>
+                      <p className="text-[13px] font-semibold" style={{ color: T.error }}>{erreurChamp}</p>
+                    </div>
+                  )}
+
+                  <Button variant="primary" size="lg" className="w-full mt-6" loading={envoiEnCours} onClick={valider}>
+                    {envoiEnCours ? 'Envoi…' : 'Recevoir le code par SMS'}
                   </Button>
-                )}
 
-                {otpSent && (
-                  <>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary">
-                        <IconLock />
-                      </span>
-                      <input
-                        id="otp"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="0000"
-                        maxLength={6}
-                        aria-invalid={!!errors.otp}
-                        className={[
-                          'w-full pl-11 pr-4 py-3.5 rounded-xl text-sm text-text-strong bg-surface',
-                          'border transition-all duration-150 placeholder:text-text-tertiary',
-                          'focus:outline-none focus:ring-2 focus:ring-offset-0 tracking-widest',
-                          errors.otp
-                            ? 'border-error/50 bg-red-50/30 focus:ring-error/20 focus:border-error/60'
-                            : 'border-border hover:border-border-strong focus:border-primary/50 focus:ring-primary/15',
-                        ].join(' ')}
-                        {...register('otp')}
-                      />
-                    </div>
+                  <p className="text-center text-sm mt-6" style={{ color: T.textTert }}>
+                    Pas encore de compte ?{' '}
+                    <Link to="/inscription" className="font-semibold" style={{ color: T.primary }}>Créer un compte</Link>
+                  </p>
+                </motion.div>
+              )}
 
-                    {errors.otp && (
-                      <p role="alert" className="flex items-center gap-1.5 text-xs text-error font-medium">
-                        <span className="w-1 h-1 rounded-full bg-error inline-block" />
-                        {errors.otp.message}
-                      </p>
+              {/* ── Étape OTP ── */}
+              {phase === 'otp' && (
+                <motion.div key="otp" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.2 }}>
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: 'rgba(10,104,71,0.08)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
+                  </div>
+                  <h2 className="font-display font-bold text-2xl tracking-tight text-center mb-1" style={{ color: T.textStrong }}>Entrez le code reçu</h2>
+                  <p className="text-sm text-center mb-7 leading-relaxed" style={{ color: T.textSec }}>
+                    Code à 6 chiffres envoyé au <strong style={{ color: T.textStrong }}>{INDICATIF} {numero}</strong>.
+                  </p>
+
+                  <OtpInput value={otp} onChange={v => { setOtp(v); if (erreurOtp) setErreurOtp(null) }} />
+
+                  <AnimatePresence>
+                    {erreurOtp && (
+                      <motion.div key={erreurOtp} initial={{ opacity: 0 }} animate={{ opacity: 1, x: [0, -6, 6, -4, 4, 0] }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
+                        className="mt-4 px-3.5 py-3 rounded-xl text-center" style={{ background: 'rgba(217,79,61,0.12)', border: '1px solid rgba(217,79,61,0.45)' }}>
+                        <p className="text-sm font-semibold" style={{ color: T.error }}>{erreurOtp}</p>
+                      </motion.div>
                     )}
+                  </AnimatePresence>
 
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-xs text-text-tertiary">Code reçu par SMS ?</p>
-                      <button 
-                        type="button" 
-                        onClick={handleResendOtp}
-                        disabled={otpCountdown > 0}
-                        className={[
-                          'text-xs font-medium transition-colors',
-                          otpCountdown > 0 
-                            ? 'text-text-tertiary cursor-not-allowed' 
-                            : 'text-primary hover:text-primary-dark'
-                        ].join(' ')}
-                      >
-                        {otpCountdown > 0 ? `Renvoyer dans ${otpCountdown}s` : 'Renvoyer'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+                  <Button variant="primary" size="lg" className="w-full mt-6" loading={verifEnCours} onClick={verifier}>
+                    {verifEnCours ? 'Vérification…' : 'Vérifier'}
+                  </Button>
 
-              <Button
-                type="submit"
-                variant="accent"
-                size="lg"
-                className="w-full mt-1"
-                loading={isSubmitting}
-                disabled={blocked}
-              >
-                Se connecter
-              </Button>
-            </form>
-
-            <p className="text-center text-sm text-text-tertiary mt-6">
-              Pas encore de compte ?{' '}
-              <Link to="/inscription" className="text-primary font-semibold hover:text-primary-dark transition-colors">
-                Créer un compte
-              </Link>
-            </p>
+                  <button onClick={renvoyerCode} disabled={cooldown > 0 || verifEnCours}
+                    className="w-full text-sm mt-3 font-semibold" style={{ color: (cooldown > 0 || verifEnCours) ? T.textTert : T.primary, background: 'none', border: 'none', cursor: (cooldown > 0 || verifEnCours) ? 'default' : 'pointer', fontFamily: 'inherit', padding: '8px' }}>
+                    {cooldown > 0 ? `Renvoyer dans ${cooldown} s` : 'Renvoyer le code'}
+                  </button>
+                  <button onClick={retourWelcome} className="w-full text-sm mt-1" style={{ color: T.textSec, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ← Modifier le numéro
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       </div>
+
+      {/* ── Modale « Numéro non inscrit » ── */}
+      <AnimatePresence>
+        {modaleNonInscrit && (
+          <motion.div className="fixed inset-0 z-[300] flex items-center justify-center p-4" style={{ background: 'rgba(20,32,46,0.50)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModaleNonInscrit(null)}>
+            <motion.div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-3xl p-7 text-center" style={{ background: T.surfaceEl }}
+              initial={{ scale: 0.94, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }} transition={{ duration: 0.2 }}>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(232,168,48,0.14)' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+              </div>
+              <p className="font-display font-bold text-xl mb-2" style={{ color: T.textStrong }}>Numéro non inscrit</p>
+              <p className="text-sm leading-relaxed mb-6" style={{ color: T.textSec }}>
+                <strong style={{ color: T.textStrong }}>{modaleNonInscrit.phoneE164}</strong> n'a pas encore de compte Tonji. Voulez-vous en créer un ?
+              </p>
+              <Button variant="primary" size="lg" className="w-full" onClick={creerDepuisModale}>Créer un compte</Button>
+              <button onClick={() => setModaleNonInscrit(null)} className="w-full text-sm mt-3" style={{ color: T.textSec, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '8px' }}>
+                Rectifier le numéro
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

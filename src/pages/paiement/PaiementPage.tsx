@@ -159,12 +159,9 @@ export default function PaiementPage() {
     <div className="min-h-screen bg-mesh flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
 
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-gradient-accent flex items-center justify-center shadow-glow">
-            <span className="text-white font-display font-bold text-base">T</span>
-          </div>
-          <span className="font-display font-bold text-white text-xl tracking-tight">Tonji</span>
+        {/* Logo — wordmark officiel Tonji (fond sombre) */}
+        <div className="flex justify-center mb-8">
+          <img src="/logo-tonji-wordmark-trim.png" alt="Tonji" className="h-9 w-auto" />
         </div>
 
         <div className="bg-surface-elevated/95 backdrop-blur-sm rounded-2xl border border-border/60 shadow-xl p-8">

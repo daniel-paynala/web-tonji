@@ -16,6 +16,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { T, grad } from '@/lib/tokens'
 import { chargerCagnotte, demarrerTontine, chargerInfoCagnottePublique, rejoindre } from '@/lib/cagnottesApi'
 import type { CagnotteDetail, Participant, Paiement, Reversement, InfoCagnottePublique } from '@/lib/cagnottesApi'
+import {
+  quitterCagnotte, fermerCagnotte, supprimerCagnotte,
+  supprimerParticipant as apiSupprimerParticipant,
+  reordonnerParticipants, toggleReversementAuto,
+} from '@/lib/cagnotteActionsApi'
+import { ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import AuthBottomSheet from '@/components/auth/AuthBottomSheet'
 
@@ -158,6 +164,11 @@ const IconTimer = () => (
     <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
   </svg>
 )
+const IconTrash = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+  </svg>
+)
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
@@ -184,7 +195,7 @@ function BlocSection({ titre, compteur, action, children }: { titre: string; com
         {compteur !== undefined && (
           <span style={{
             fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '20px',
-            background: `rgba(15,76,92,0.08)`, color: T.primary,
+            background: `rgba(10,104,71,0.08)`, color: T.primary,
           }}>{compteur}</span>
         )}
         {action && <div style={{ marginLeft: 'auto' }}>{action}</div>}
@@ -206,18 +217,23 @@ function SectionInfos({ c }: { c: CagnotteDetail }) {
   const isTontine = c.type === 'tontine'
   const cadence   = cadenceHumaine(c)
 
-  const lignes: { icon: React.ReactNode; label: string; value: string; accent?: boolean }[] = [
-    { icon: <IconCalendar />, label: 'Créée le', value: formatDate(c.dateCreation) },
-  ]
-  if (c.dateFin) lignes.push({ icon: <IconCalendar />, label: 'Date de fin', value: formatDate(c.dateFin) })
+  // « Créée le » est désormais affichée dans le hero — plus répétée ici.
+  const lignes: { icon: React.ReactNode; label: string; value: string; accent?: boolean }[] = []
+  if (c.dateFin) lignes.push({ icon: <IconCalendar />, label: 'Date limite', value: formatDate(c.dateFin) })
   if (isTontine && cadence) lignes.push({ icon: <IconSync />, label: 'Cadence', value: cadence })
   if (isTontine && c.numeroRetraitMasque) lignes.push({ icon: <IconPhone />, label: 'Retrait sur', value: c.numeroRetraitMasque, accent: true })
   if (isTontine) {
+    // Flutter : « {montant} {penaliteFrequence?.libelle ?? 'par jour'} ».
+    // penaliteFrequence n'étant pas (encore) mappé dans le modèle web, on
+    // retombe sur le libellé par défaut « par jour » exactement comme Flutter.
     const penalite = c.penaliteActive && c.penaliteMontant
-      ? `${fmtMontant(c.penaliteMontant)} par ${c.penaliteCourante > 0 ? 'heure' : 'jour'}`
+      ? `${fmtMontant(c.penaliteMontant)} par jour`
       : 'Aucune'
     lignes.push({ icon: <IconTimer />, label: 'Pénalité', value: penalite })
   }
+
+  // Rien à afficher (cotisation sans date limite) → on masque tout le cadre.
+  if (lignes.length === 0) return null
 
   return (
     <div style={{
@@ -274,7 +290,7 @@ function LigneParticipant({ p, index, estTontine, tontineDemarree }: {
       {/* Avatar circulaire */}
       <div style={{
         width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
-        background: p.estMoi ? `rgba(15,76,92,0.18)` : `rgba(15,76,92,0.10)`,
+        background: p.estMoi ? `rgba(10,104,71,0.18)` : `rgba(10,104,71,0.10)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '13px', fontWeight: 800, color: T.primary, letterSpacing: '0.4px',
       }}>
@@ -338,6 +354,308 @@ function LigneParticipant({ p, index, estTontine, tontineDemarree }: {
   )
 }
 
+// ── Icône poignée de glissement (drag handle) ─────────────────────────────────
+const IconDrag = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
+  </svg>
+)
+// ── Icône retirer un membre ──────────────────────────────────────────────────
+const IconPersonRemove = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/>
+  </svg>
+)
+const IconPlay = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
+  </svg>
+)
+const IconLock = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+  </svg>
+)
+const IconGroupAdd = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+  </svg>
+)
+const IconSwapVert = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="7 3 7 21"/><polyline points="3 7 7 3 11 7"/><polyline points="17 21 17 3"/><polyline points="13 17 17 21 21 17"/>
+  </svg>
+)
+
+// ── Section membres tontine — miroir de _SectionMembresTontine ────────────────
+// Gère l'ordre de passage (glisser-déposer avant démarrage), la suppression de
+// membres, et la carte de bas de section (manquants / démarrage verrouillé).
+function SectionMembresTontine({ c, onReload }: { c: CagnotteDetail; onReload: () => Promise<void> }) {
+  const estActive  = c.statut === 'active'
+  const estEnCours = c.statut === 'en_cours'
+
+  // Ordre initial : trié par ordre_passage dès qu'au moins un membre en a un.
+  const buildOrdreInitial = useCallback((): Participant[] => {
+    const sorted = [...c.participants]
+    if (sorted.some(p => p.ordrePassage > 0)) {
+      sorted.sort((a, b) => {
+        const ao = a.ordrePassage === 0 ? 9999 : a.ordrePassage
+        const bo = b.ordrePassage === 0 ? 9999 : b.ordrePassage
+        return ao - bo
+      })
+    }
+    return sorted
+  }, [c.participants])
+
+  const [ordre, setOrdre]       = useState<Participant[]>(buildOrdreInitial)
+  const [demarrage, setDemarrage] = useState(false)
+  const [retirerCible, setRetirerCible] = useState<Participant | null>(null)
+  const [dragIdx, setDragIdx]   = useState<number | null>(null)
+
+  // Recalcule l'ordre quand le nombre de participants change (didUpdateWidget Flutter).
+  useEffect(() => { setOrdre(buildOrdreInitial()) }, [buildOrdreInitial])
+
+  // Glisser-déposer (équivalent ReorderableListView).
+  const onDrop = (newIndex: number) => {
+    if (dragIdx === null || dragIdx === newIndex) { setDragIdx(null); return }
+    setOrdre(prev => {
+      const next = [...prev]
+      const [item] = next.splice(dragIdx, 1)
+      next.splice(newIndex, 0, item)
+      return next
+    })
+    setDragIdx(null)
+  }
+
+  // Suppression d'un membre (après confirmation).
+  const confirmerRetrait = async () => {
+    const p = retirerCible
+    setRetirerCible(null)
+    if (!p) return
+    try {
+      await apiSupprimerParticipant(c.id, p.id)
+      await onReload()
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : 'Erreur inattendue.')
+    }
+  }
+
+  // Compteurs pour la carte de démarrage.
+  const totalInscrits = c.nombreInscrits + 1 // +1 = créateur
+  const manquants = c.nombreParticipants > 0
+    ? Math.max(0, Math.min(999, c.nombreParticipants - totalInscrits))
+    : 0
+  const pret = manquants === 0
+
+  // Démarrage : enregistre l'ordre puis lance la tontine (irréversible).
+  const lancerDemarrage = async () => {
+    if (c.nombreParticipants > 0 && manquants > 0) {
+      alert(`Il manque ${manquants} membre${manquants > 1 ? 's' : ''} avant de pouvoir démarrer.`)
+      return
+    }
+    setDemarrage(true)
+    try {
+      await reordonnerParticipants(c.id, ordre.map(p => p.id))
+      await demarrerTontine(c.id)
+      await onReload()
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : 'Erreur lors du démarrage.')
+    } finally {
+      setDemarrage(false)
+    }
+  }
+
+  const compteur = c.nombreParticipants > 0
+    ? `${c.nombreInscrits + 1}/${c.nombreParticipants}`
+    : `${c.participants.length}`
+
+  return (
+    <>
+      <BlocSection titre="Membres" compteur={compteur}>
+        {ordre.map((p, i) => (
+          <div
+            key={p.id}
+            draggable={estActive}
+            onDragStart={() => estActive && setDragIdx(i)}
+            onDragOver={e => { if (estActive) e.preventDefault() }}
+            onDrop={() => estActive && onDrop(i)}
+            style={{
+              display: 'flex', alignItems: 'center',
+              borderBottom: i < ordre.length - 1 ? `1px solid ${T.border}` : 'none',
+              opacity: dragIdx === i ? 0.5 : 1,
+            }}
+          >
+            {/* Poignée (avant démarrage) ou numéro d'ordre (après démarrage) */}
+            {estActive ? (
+              <span style={{ padding: '0 10px', color: T.textSec, cursor: 'grab', flexShrink: 0 }}><IconDrag /></span>
+            ) : estEnCours ? (
+              <span style={{ width: 36, textAlign: 'center', fontSize: '11px', fontWeight: 800, color: T.primary, letterSpacing: '0.4px', flexShrink: 0 }}>
+                #{p.ordrePassage > 0 ? p.ordrePassage : i + 1}
+              </span>
+            ) : null}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <LigneParticipant p={p} index={i} estTontine tontineDemarree={estEnCours} />
+            </div>
+            {!p.estMoi && (
+              <button
+                onClick={() => setRetirerCible(p)}
+                title="Retirer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.error, padding: '6px', flexShrink: 0, display: 'flex' }}
+              >
+                <IconPersonRemove />
+              </button>
+            )}
+          </div>
+        ))}
+      </BlocSection>
+
+      {/* Carte de démarrage — visible uniquement tant que la tontine est "active" */}
+      {estActive && (
+        <div style={{
+          padding: '16px', borderRadius: '20px', marginBottom: '24px',
+          background: pret ? 'rgba(10,104,71,0.06)' : 'rgba(196,138,26,0.06)',
+          border: `1px solid ${pret ? 'rgba(10,104,71,0.25)' : 'rgba(196,138,26,0.40)'}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', color: pret ? T.primary : T.warning }}>
+            {pret ? <IconSwapVert /> : <IconGroupAdd />}
+            <p style={{ fontSize: '14px', fontWeight: 700 }}>{pret ? 'Ordre de passage' : 'Membres manquants'}</p>
+          </div>
+          <p style={{ fontSize: '13px', lineHeight: 1.5, color: pret ? T.textSec : T.warning, marginBottom: '14px' }}>
+            {pret
+              ? "Glissez les membres pour définir qui reçoit les fonds en premier. L'ordre sera verrouillé au démarrage."
+              : `Il manque ${manquants} membre${manquants > 1 ? 's' : ''} avant de pouvoir démarrer. Ajoutez-les via le bouton « Ajouter » ou partagez le lien d'invitation.`}
+          </p>
+          <button
+            onClick={lancerDemarrage}
+            disabled={!pret || demarrage}
+            style={{
+              width: '100%', height: '48px', borderRadius: '12px', border: 'none',
+              cursor: (!pret || demarrage) ? 'not-allowed' : 'pointer',
+              background: pret ? T.success : 'rgba(196,138,26,0.40)',
+              color: T.surface, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              opacity: demarrage ? 0.7 : 1,
+            }}
+          >
+            {demarrage
+              ? <span style={{ width: 16, height: 16, border: `2px solid rgba(246,247,244,0.4)`, borderTopColor: T.surface, borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+              : (pret ? <IconPlay /> : <IconLock />)}
+            {pret ? 'Démarrer' : `Démarrer (${manquants} manquant${manquants > 1 ? 's' : ''})`}
+          </button>
+        </div>
+      )}
+
+      {/* Modale de confirmation retrait membre */}
+      <ConfirmSheet
+        open={retirerCible !== null}
+        titre="Retirer ce membre ?"
+        message={retirerCible ? `${retirerCible.nomComplet} sera retiré de la tontine. Les paiements déjà effectués restent enregistrés.` : ''}
+        labelConfirme="Retirer"
+        danger
+        onConfirme={confirmerRetrait}
+        onAnnule={() => setRetirerCible(null)}
+      />
+    </>
+  )
+}
+
+// ── Bottom sheet de confirmation réutilisable (miroir des AlertDialog Flutter) ─
+function ConfirmSheet({ open, titre, message, labelConfirme, danger, onConfirme, onAnnule }: {
+  open: boolean; titre: string; message: string; labelConfirme: string
+  danger?: boolean; onConfirme: () => void; onAnnule: () => void
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(20,32,46,0.55)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
+          onClick={onAnnule}
+        >
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+            onClick={e => e.stopPropagation()}
+            style={{ background: T.surface, borderRadius: '24px 24px 0 0', padding: '20px 24px 40px', width: '100%' }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: T.border, margin: '0 auto 20px' }} />
+            <p style={{ fontSize: '20px', fontWeight: 800, color: T.textStrong, marginBottom: '8px' }}>{titre}</p>
+            <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '24px', lineHeight: 1.5 }}>{message}</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={onAnnule} style={{ flex: 1, height: '50px', borderRadius: '14px', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textStrong, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={onConfirme} style={{ flex: 1, height: '50px', borderRadius: '14px', border: 'none', background: danger ? T.error : T.primary, color: '#fff', fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
+                {labelConfirme}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ── Toggle reversement systématique — miroir de _ToggleReversementAuto ────────
+function ToggleReversementAuto({ c, onReload }: { c: CagnotteDetail; onReload: () => Promise<void> }) {
+  const [actif, setActif]   = useState(c.reversementAuto)
+  const [enCours, setEnCours] = useState(false)
+
+  const toggle = async (valeur: boolean) => {
+    if (enCours) return
+    setActif(valeur)       // optimiste
+    setEnCours(true)
+    try {
+      await toggleReversementAuto(c.id, valeur)
+      await onReload()
+    } catch (e) {
+      setActif(!valeur)    // annulation en cas d'erreur
+      alert(e instanceof ApiError ? e.message : 'Erreur inattendue. Réessaie.')
+    } finally {
+      setEnCours(false)
+    }
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px',
+      padding: '12px 14px 14px 16px', borderRadius: '16px',
+      background: actif ? 'rgba(10,104,71,0.06)' : T.surfaceEl,
+      border: `1.3px solid ${actif ? 'rgba(10,104,71,0.40)' : T.border}`,
+      transition: 'all 0.22s',
+    }}>
+      <span style={{ color: actif ? T.primary : T.textSec }}><IconRefresh /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: '15px', fontWeight: 700, color: T.textStrong }}>Recevoir l'argent automatiquement</p>
+        {/* Corps identique dans les deux états ; seul le verbe change (miroir Flutter). */}
+        <p style={{ fontSize: '12px', marginTop: '2px', color: actif ? T.primary : T.textSec }}>
+          {actif ? 'Désactiver' : 'Activer'} le reversement automatique tous les soirs à 18h.
+        </p>
+      </div>
+      {enCours ? (
+        <span style={{ width: 22, height: 22, border: `2.2px solid rgba(10,104,71,0.25)`, borderTopColor: T.primary, borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+      ) : (
+        <button
+          onClick={() => toggle(!actif)}
+          role="switch"
+          aria-checked={actif}
+          style={{
+            width: 46, height: 28, borderRadius: 14, border: 'none', flexShrink: 0,
+            background: actif ? 'rgba(10,104,71,0.35)' : T.borderStr,
+            position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 3, left: actif ? 21 : 3, width: 22, height: 22,
+            borderRadius: '50%', background: actif ? T.primary : T.surfaceEl,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s, background 0.2s',
+          }} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Export PDF historique ─────────────────────────────────────────────────────
 
 function escHtml(s: string): string {
@@ -381,7 +699,7 @@ function exporterHistorique(c: CagnotteDetail) {
   const wmCells = Array.from({ length: 30 }, (_, i) => {
     const col = i % 5
     const row = Math.floor(i / 5)
-    return `<div style="position:absolute;left:${col * 22 - 6}%;top:${row * 16 - 4}%;font-size:54px;font-weight:900;color:rgba(15,76,92,0.055);transform:rotate(-38deg);white-space:nowrap;font-family:system-ui,-apple-system,sans-serif;letter-spacing:5px;user-select:none;pointer-events:none;">TONDO</div>`
+    return `<div style="position:absolute;left:${col * 22 - 6}%;top:${row * 16 - 4}%;font-size:54px;font-weight:900;color:rgba(10,104,71,0.055);transform:rotate(-38deg);white-space:nowrap;font-family:system-ui,-apple-system,sans-serif;letter-spacing:5px;user-select:none;pointer-events:none;">TONDO</div>`
   }).join('')
 
   const lignes = mouvements.length === 0
@@ -449,7 +767,7 @@ function exporterHistorique(c: CagnotteDetail) {
     <div class="brand-icon">T</div>
     <div>
       <div class="brand-name">Tonji</div>
-      <div class="brand-sub">Tontines &amp; cotisations · Paynala</div>
+      <div class="brand-sub">Tontines &amp; cagnottes · Paynala</div>
     </div>
   </div>
   <div class="sep"></div>
@@ -573,15 +891,15 @@ function BlocHistoriqueUnifie({ historique, sorties, onExporter }: { historique:
 function CarteMonResume({ nbPaiements, total }: { nbPaiements: number; total: number }) {
   return (
     <div style={{
-      background: `rgba(201,123,74,0.08)`, borderRadius: '20px',
-      border: `1px solid rgba(201,123,74,0.30)`,
+      background: `rgba(232,168,48,0.08)`, borderRadius: '20px',
+      border: `1px solid rgba(232,168,48,0.30)`,
       padding: '16px 18px 18px', marginBottom: '24px',
       display: 'flex', alignItems: 'center', gap: '14px',
     }}>
       {/* Icône */}
       <div style={{
         width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
-        background: `rgba(201,123,74,0.18)`,
+        background: `rgba(232,168,48,0.18)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: T.accent,
       }}>
@@ -590,7 +908,7 @@ function CarteMonResume({ nbPaiements, total }: { nbPaiements: number; total: nu
       {/* Texte */}
       <div>
         <p style={{ fontSize: '11px', fontWeight: 700, color: T.textSec, letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: '2px' }}>
-          Vos cotisations
+          Historique des paiements
         </p>
         <p style={{ fontSize: '22px', fontWeight: 800, color: T.accent, letterSpacing: '-0.5px', lineHeight: 1.1 }}>
           {fmtMontant(total)}
@@ -635,8 +953,8 @@ function CarteProchaineEcheance({ c }: { c: CagnotteDetail }) {
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       style={{
         padding: '14px 16px 16px', borderRadius: '20px', marginBottom: '24px',
-        background: `linear-gradient(135deg, rgba(15,76,92,0.12) 0%, rgba(201,123,74,0.07) 100%)`,
-        border: `1px solid rgba(15,76,92,0.30)`,
+        background: `linear-gradient(135deg, rgba(10,104,71,0.12) 0%, rgba(232,168,48,0.07) 100%)`,
+        border: `1px solid rgba(10,104,71,0.30)`,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
@@ -653,7 +971,7 @@ function CarteProchaineEcheance({ c }: { c: CagnotteDetail }) {
             <p style={{ fontSize: '12px', color: T.textSec }}>{delaiTexte(date)}</p>
           </div>
         )}
-        {benef && date && <div style={{ width: '1px', background: `rgba(15,76,92,0.20)`, alignSelf: 'stretch' }} />}
+        {benef && date && <div style={{ width: '1px', background: `rgba(10,104,71,0.20)`, alignSelf: 'stretch' }} />}
         {benef && (
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: '10px', color: T.textTert, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: '4px' }}>Prochain bénéficiaire</p>
@@ -702,7 +1020,7 @@ function HeroDetail({ c }: { c: CagnotteDetail }) {
         </span>
         {isGerant && (
           <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '3px 9px', borderRadius: '20px', background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.90)' }}>
-            Gérant
+            Organisateur
           </span>
         )}
       </div>
@@ -710,19 +1028,27 @@ function HeroDetail({ c }: { c: CagnotteDetail }) {
       {/* Titre */}
       <p style={{ fontSize: '20px', fontWeight: 800, color: 'rgba(255,255,255,0.95)', lineHeight: 1.2, marginBottom: '14px' }}>{c.titre}</p>
 
-      {/* Label montant */}
-      <p style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
-        Total collecté
-      </p>
-
-      {/* Montant animé */}
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', marginBottom: '4px' }}
-      >
-        <span style={{ fontSize: '36px', fontWeight: 800, color: '#fff', letterSpacing: '-1px', lineHeight: 1 }}>{montantFmt}</span>
-        <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)', paddingBottom: '6px' }}>FCFA</span>
-      </motion.div>
+      {/* Montant à gauche, date de création à droite (miroir Flutter :
+          la date est remontée dans le hero, sur une pastille assombrie pour
+          rester lisible sur la partie claire du dégradé). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>
+            Total collecté
+          </p>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}
+          >
+            <span style={{ fontSize: '36px', fontWeight: 800, color: '#fff', letterSpacing: '-1px', lineHeight: 1 }}>{montantFmt}</span>
+            <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)', paddingBottom: '6px' }}>FCFA</span>
+          </motion.div>
+        </div>
+        <div style={{ flexShrink: 0, textAlign: 'right', background: 'rgba(0,0,0,0.18)', borderRadius: '12px', padding: '6px 10px 7px' }}>
+          <p style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.8px', lineHeight: 1.1 }}>CRÉÉE LE</p>
+          <p style={{ fontSize: '13px', fontWeight: 800, color: '#fff', letterSpacing: '0.4px', lineHeight: 1.1, marginTop: '2px' }}>{formatDate(c.dateCreation)}</p>
+        </div>
+      </div>
 
       {/* Progression (cotisation avec cible) */}
       {progression !== null && c.montantCible && (
@@ -886,7 +1212,8 @@ export default function MobileDetailCagnotte() {
   const [erreur, setErreur]             = useState<string | null>(null)
   const [showAllP, setShowAllP]         = useState(false)
   const [quitterModal, setQuitterModal] = useState(false)
-  const [demarrageEnCours, setDemarrageEnCours] = useState(false)
+  const [fermerModal, setFermerModal]   = useState(false)
+  const [supprimerModal, setSupprimerModal] = useState(false)
   const [showAuthSheet, setShowAuthSheet]       = useState(false)
   const [pendingAction, setPendingAction]       = useState<'participer' | 'cotiser' | null>(null)
   const [rejointEnCours, setRejointEnCours]     = useState(false)
@@ -1012,20 +1339,29 @@ export default function MobileDetailCagnotte() {
 
   if (!cagnotte) return null
 
-  // ── Logique métier ──────────────────────────────────────────────────────────
+  // ── Logique métier (miroir cagnotte_detail_screen.dart) ──────────────────────
   const isTontine        = cagnotte.type === 'tontine'
   const isGerant         = cagnotte.role === 'gerant'
+  const estCotiseur      = cagnotte.role === 'cotiseur'
   const estCloturee      = cagnotte.statut === 'cloturee'
   const tontineDemarree  = isTontine && cagnotte.statut === 'en_cours'
-  const tontineActive    = isTontine && cagnotte.statut === 'active'
   const objectifAtteint  = !isTontine && !!cagnotte.montantCible && cagnotte.montantCollecte >= cagnotte.montantCible
   const dateLimiteDepassee = !isTontine && !!cagnotte.dateFin && new Date(cagnotte.dateFin) < new Date()
   const estTerminee      = estCloturee || (isTontine && cagnotte.rotationTerminee)
   const peutCotiser      = !estTerminee && !objectifAtteint && !dateLimiteDepassee && (isTontine ? tontineDemarree : true)
+  // « Payé ce tour » ne s'applique qu'aux tontines (paiement unique par cycle).
   const aDejaPayeCycle   = isTontine && cagnotte.participants.some(p => p.estMoi && p.statutPaiement === 'paye')
-  const peutQuitter      = !isGerant && (isTontine ? !tontineDemarree : true) && !estCloturee
+  // Gérant peut ajouter des membres tant que la tontine n'est pas pleine ni clôturée.
+  const peutAjouterMembres = !estCotiseur && isTontine && !estCloturee &&
+    (cagnotte.nombreInscrits + 1) < cagnotte.nombreParticipants
+  // Quitter — cotiseur uniquement. Tontine : avant démarrage. Cotisation : toujours.
+  const peutQuitter      = estCotiseur && (isTontine ? !tontineDemarree : true) && !estCloturee
+  const aDesTransactions = cagnotte.historique.length > 0 || cagnotte.sorties.length > 0
+  // Fermer = clôturer si historique. Supprimer = effacer si vierge. Mutuellement exclusifs.
+  const peutFermer       = !estCotiseur && !isTontine && !estCloturee && aDesTransactions
+  const peutSupprimer    = !estCotiseur && !aDesTransactions && !estCloturee
 
-  const montantDisponible = cagnotte.montantCollecte - cagnotte.sorties.reduce((s, r) => s + r.montant, 0)
+  const montantDisponible = cagnotte.montantCollecte
   const monTotal = cagnotte.historique.reduce((s, p) => s + p.montant, 0)
 
   const partagerLien = async () => {
@@ -1038,16 +1374,59 @@ export default function MobileDetailCagnotte() {
     }
   }
 
-  const lancerDemarrage = async () => {
-    if (!id) return
-    setDemarrageEnCours(true)
+  // ── Quitter (appel API réel) ──────────────────────────────────────────────
+  const confirmerQuitter = async () => {
+    setQuitterModal(false)
     try {
-      await demarrerTontine(id)
-      await charger()
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erreur lors du démarrage.')
-    } finally {
-      setDemarrageEnCours(false)
+      await quitterCagnotte(cagnotte.id)
+      navigate('/')
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : 'Erreur inattendue.')
+    }
+  }
+
+  // ── Fermer la cagnotte ──────────────────────────────────────────────────────
+  // Si solde > 0 → passe d'abord par le reversement intégral (fermerApresReversement).
+  // Sinon → confirmation puis fermeture directe.
+  const lancerFermeture = () => {
+    if (cagnotte.montantCollecte > 0) {
+      navigate(`/cagnottes/${cagnotte.id}/reverser`, {
+        state: {
+          titre: cagnotte.titre,
+          montantDisponible: cagnotte.montantCollecte,
+          participants: cagnotte.participants,
+          fermerApresReversement: true,
+        },
+      })
+      return
+    }
+    setFermerModal(true)
+  }
+  const confirmerFermeture = async () => {
+    setFermerModal(false)
+    try {
+      await fermerCagnotte(cagnotte.id)
+      navigate('/')
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : 'Erreur inattendue.')
+    }
+  }
+
+  // ── Supprimer la cagnotte ────────────────────────────────────────────────────
+  const confirmerSuppression = async () => {
+    setSupprimerModal(false)
+    try {
+      await supprimerCagnotte(cagnotte.id)
+      navigate('/')
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : ''
+      // Transactions en attente côté DB → on bascule vers la clôture (cf. Flutter).
+      if (msg.includes('foreign key') || msg.includes('23503')) {
+        try { await fermerCagnotte(cagnotte.id); navigate('/') }
+        catch (e2) { alert(e2 instanceof ApiError ? e2.message : 'Erreur inattendue.') }
+      } else {
+        alert(msg || 'Erreur inattendue lors de la suppression.')
+      }
     }
   }
 
@@ -1066,6 +1445,7 @@ export default function MobileDetailCagnotte() {
 
   return (
     <div style={{ background: T.surface, minHeight: '100%', paddingBottom: '100px' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -1079,49 +1459,26 @@ export default function MobileDetailCagnotte() {
 
         {/* ── Banner : payé ce cycle ────────────────────────────────────── */}
         {aDejaPayeCycle && (
-          <Banner icon={<IconCheckCircle />} message="Vous avez payé votre cotisation pour ce cycle."
-            couleur={T.success} bg="rgba(107,142,78,0.10)" border="rgba(107,142,78,0.35)" />
+          <Banner icon={<IconCheckCircle />} message="Vous avez payé votre part pour ce tour."
+            couleur={T.success} bg="rgba(10,104,71,0.10)" border="rgba(10,104,71,0.35)" />
         )}
 
         {/* ── Banner : rotation terminée ────────────────────────────────── */}
         {isTontine && tontineDemarree && cagnotte.rotationTerminee && (
-          <Banner icon={<IconStar />} message="Rotation terminée — tous les participants ont reçu leur mise."
-            couleur={T.success} bg="rgba(107,142,78,0.10)" border="rgba(107,142,78,0.40)" />
+          <Banner icon={<IconStar />} message="Rotation terminée — tous les membres ont reçu leur mise."
+            couleur={T.success} bg="rgba(10,104,71,0.10)" border="rgba(10,104,71,0.40)" />
         )}
 
         {/* ── Banner : objectif atteint / date dépassée ─────────────────── */}
         {!isTontine && (objectifAtteint || dateLimiteDepassee) && !estTerminee && (
           <Banner
             icon={<IconCheckCircle />}
-            message={objectifAtteint ? 'Objectif atteint — les cotisations sont fermées.' : 'Date limite dépassée — les cotisations sont fermées.'}
-            couleur={T.success} bg="rgba(107,142,78,0.10)" border="rgba(107,142,78,0.40)" />
+            message={objectifAtteint ? 'Objectif atteint — la cagnotte est fermée.' : 'Date limite dépassée — la cagnotte est fermée.'}
+            couleur={T.success} bg="rgba(10,104,71,0.10)" border="rgba(10,104,71,0.40)" />
         )}
 
-        {/* ── Banner : c'est votre tour ─────────────────────────────────── */}
-        {isTontine && tontineDemarree && cagnotte.prochainBeneficiaire?.estMoi && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-            style={{
-              display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px',
-              borderRadius: '16px', marginBottom: '16px',
-              background: `linear-gradient(135deg, rgba(201,123,74,0.15) 0%, rgba(201,123,74,0.07) 100%)`,
-              border: `1px solid rgba(201,123,74,0.50)`,
-            }}
-          >
-            <span style={{ color: T.accent }}><IconStar /></span>
-            <div>
-              <p style={{ fontSize: '14px', fontWeight: 800, color: T.accent, marginBottom: '2px' }}>C'est bientôt votre tour !</p>
-              {cagnotte.prochaineDate && (
-                <p style={{ fontSize: '13px', fontWeight: 500, color: T.accent }}>
-                  Vous recevrez les fonds le {formatDate(cagnotte.prochaineDate)}.
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── Prochaine échéance ────────────────────────────────────────── */}
-        {isTontine && tontineDemarree && !cagnotte.rotationTerminee && !cagnotte.prochainBeneficiaire?.estMoi &&
+        {/* ── Prochaine échéance (gérant + cotiseur) ─────────────────────── */}
+        {isTontine && tontineDemarree && !cagnotte.rotationTerminee &&
           (cagnotte.prochaineDate || cagnotte.prochainBeneficiaire) && (
           <CarteProchaineEcheance c={cagnotte} />
         )}
@@ -1131,32 +1488,31 @@ export default function MobileDetailCagnotte() {
         ══════════════════════════════════════════════════════════════════ */}
         {isGerant && (
           <>
-            {/* Participants */}
+            {/* Membres — tontine : section avec ordre/démarrage ; cotisation : bloc simple */}
             {participantsTries.length > 0 && (
-              <BlocSection
-                titre="Participants"
-                compteur={isTontine && cagnotte.nombreParticipants > 0
-                  ? `${cagnotte.nombreInscrits + 1}/${cagnotte.nombreParticipants}`
-                  : `${participantsTries.length}`}
-              >
-                {displayedP.map((p, i) => (
-                  <div key={p.id} style={{ borderBottom: i < displayedP.length - 1 ? `1px solid ${T.border}` : 'none' }}>
-                    <LigneParticipant p={p} index={i} estTontine={isTontine} tontineDemarree={tontineDemarree} />
-                  </div>
-                ))}
-                {participantsTries.length > 5 && (
-                  <button
-                    onClick={() => setShowAllP(v => !v)}
-                    style={{
-                      width: '100%', padding: '12px', background: 'none', border: 'none',
-                      cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: T.primary,
-                      fontFamily: 'inherit', textAlign: 'center',
-                    }}
-                  >
-                    {showAllP ? 'Voir moins' : `Voir tous (${participantsTries.length - 5} autres)`}
-                  </button>
-                )}
-              </BlocSection>
+              isTontine ? (
+                <SectionMembresTontine c={cagnotte} onReload={charger} />
+              ) : (
+                <BlocSection titre="Membres" compteur={`${participantsTries.length}`}>
+                  {displayedP.map((p, i) => (
+                    <div key={p.id} style={{ borderBottom: i < displayedP.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+                      <LigneParticipant p={p} index={i} estTontine={false} tontineDemarree={false} />
+                    </div>
+                  ))}
+                  {participantsTries.length > 5 && (
+                    <button
+                      onClick={() => setShowAllP(v => !v)}
+                      style={{
+                        width: '100%', padding: '12px', background: 'none', border: 'none',
+                        cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: T.primary,
+                        fontFamily: 'inherit', textAlign: 'center',
+                      }}
+                    >
+                      {showAllP ? 'Voir moins' : `Voir tous (${participantsTries.length - 5} autres)`}
+                    </button>
+                  )}
+                </BlocSection>
+              )
             )}
 
             {/* Historique + sorties */}
@@ -1166,11 +1522,17 @@ export default function MobileDetailCagnotte() {
 
             {/* État vide total */}
             {participantsTries.length === 0 && cagnotte.historique.length === 0 && cagnotte.sorties.length === 0 && (
-              <div style={{ padding: '20px', borderRadius: '20px', background: T.surfaceEl, border: `1px solid ${T.border}`, marginBottom: '24px' }}>
-                <p style={{ fontSize: '13px', color: T.textSec, lineHeight: 1.5 }}>
-                  Aucun participant ni paiement pour le moment. Partagez le lien d'invitation pour démarrer.
+              <div style={{ padding: '20px', borderRadius: '20px', background: T.surfaceEl, border: `1px solid ${T.border}`, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ color: T.primary, flexShrink: 0 }}><IconUsers /></span>
+                <p style={{ fontSize: '14px', color: T.textSec, lineHeight: 1.5 }}>
+                  Aucun membre ni paiement enregistré pour le moment. Partagez le lien d'invitation pour démarrer.
                 </p>
               </div>
+            )}
+
+            {/* Toggle reversement systématique — cotisation ouverte active uniquement */}
+            {!isTontine && !estTerminee && (
+              <ToggleReversementAuto c={cagnotte} onReload={charger} />
             )}
           </>
         )}
@@ -1180,7 +1542,33 @@ export default function MobileDetailCagnotte() {
         ══════════════════════════════════════════════════════════════════ */}
         {!isGerant && (
           <>
-            <CarteMonResume nbPaiements={cagnotte.historique.length} total={monTotal} />
+            {/* Résumé masqué tant que rien n'a été versé (miroir Flutter). */}
+            {cagnotte.historique.length > 0 && (
+              <CarteMonResume nbPaiements={cagnotte.historique.length} total={monTotal} />
+            )}
+
+            {/* Banner « C'est bientôt votre tour » — cotiseur prochain bénéficiaire */}
+            {isTontine && tontineDemarree && cagnotte.prochainBeneficiaire?.estMoi && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px',
+                  borderRadius: '16px', marginBottom: '16px',
+                  background: `linear-gradient(135deg, rgba(232,168,48,0.15) 0%, rgba(232,168,48,0.07) 100%)`,
+                  border: `1px solid rgba(232,168,48,0.50)`,
+                }}
+              >
+                <span style={{ color: T.accent }}><IconStar /></span>
+                <div>
+                  <p style={{ fontSize: '14px', fontWeight: 800, color: T.accent, marginBottom: '2px' }}>C'est bientôt votre tour !</p>
+                  {cagnotte.prochaineDate && (
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: T.accent }}>
+                      Vous recevrez les fonds le {formatDate(cagnotte.prochaineDate)}.
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            )}
 
             {(cagnotte.historique.length > 0 || cagnotte.sorties.length > 0)
               ? <BlocHistoriqueUnifie historique={cagnotte.historique} sorties={cagnotte.sorties} onExporter={() => exporterHistorique(cagnotte)} />
@@ -1196,6 +1584,7 @@ export default function MobileDetailCagnotte() {
 
         {/* ── Boutons d'action ──────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+          {/* Action principale (équivalent FAB Flutter) : Cotiser / Payé ce tour / Ajouter */}
           {peutCotiser && !aDejaPayeCycle && (
             <button
               onClick={() => handleAction('cotiser')}
@@ -1205,65 +1594,97 @@ export default function MobileDetailCagnotte() {
             </button>
           )}
           {peutCotiser && aDejaPayeCycle && (
-            <div style={{ width: '100%', height: '52px', borderRadius: '16px', background: 'rgba(107,142,78,0.10)', border: `1px solid rgba(107,142,78,0.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: T.success, fontSize: '14px', fontWeight: 700 }}>
-              <IconCheckCircle /> Payé ce cycle
+            <div style={{ width: '100%', height: '52px', borderRadius: '16px', background: 'rgba(10,104,71,0.10)', border: `1px solid rgba(10,104,71,0.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: T.success, fontSize: '14px', fontWeight: 700 }}>
+              <IconCheckCircle /> Payé ce tour
             </div>
           )}
-
-          {/* ── Actions gérant tontine ────────────────────────────── */}
-          {isGerant && isTontine && tontineActive && (
-            <button
-              onClick={lancerDemarrage}
-              disabled={demarrageEnCours}
-              style={{ width: '100%', height: '52px', borderRadius: '16px', border: 'none', cursor: demarrageEnCours ? 'not-allowed' : 'pointer', background: T.primary, color: T.surface, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: demarrageEnCours ? 0.7 : 1 }}
-            >
-              {demarrageEnCours ? 'Démarrage…' : '▶ Démarrer la tontine'}
-            </button>
-          )}
-          {isGerant && isTontine && (
+          {/* Ajouter — gérant tontine non démarrée et non pleine (équivalent FAB "Ajouter") */}
+          {!peutCotiser && peutAjouterMembres && (
             <button
               onClick={() => navigate(`/cagnottes/${cagnotte.id}/participants`, {
                 state: {
                   titre: cagnotte.titre,
-                  nombreMax: cagnotte.nombreParticipants ?? 0,
-                  nombreInscrits: cagnotte.nombreInscrits ?? 0,
                   type: 'tontine',
+                  max: cagnotte.nombreParticipants,
+                  inscrits: cagnotte.nombreInscrits,
                 }
               })}
-              style={{ width: '100%', height: '50px', borderRadius: '16px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.primary}`, color: T.primary, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              style={{ width: '100%', height: '56px', borderRadius: '18px', border: 'none', cursor: 'pointer', background: T.primary, color: T.surface, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
             >
-              <IconUsers /> Gérer les participants
+              <IconGroupAdd /> Ajouter
             </button>
           )}
 
-          {/* ── Action gérant cotisation : reverser ───────────────── */}
-          {isGerant && !isTontine && montantDisponible > 0 && !estTerminee && (
-            <button
-              onClick={() => navigate(`/cagnottes/${cagnotte.id}/reverser`, {
-                state: {
-                  titre: cagnotte.titre,
-                  montantDisponible,
-                  participants: cagnotte.participants,
-                }
-              })}
-              style={{ width: '100%', height: '52px', borderRadius: '16px', border: 'none', cursor: 'pointer', background: T.primary, color: T.surface, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-            >
-              <IconDownload /> Reverser les fonds
-            </button>
-          )}
+          {/* ══ Actions gérant ══ */}
+          {/* Reverser / Inviter / Clôturer alignés sur une ligne à parts égales
+              (miroir Flutter _ActionsGerant : trois emplacements d'un tiers). */}
+          {isGerant && (() => {
+            const inviterVisible = !(
+              (isTontine && cagnotte.nombreParticipants > 0 && (cagnotte.nombreInscrits + 1) >= cagnotte.nombreParticipants)
+              || estCloturee
+            )
+            const trio: React.ReactNode[] = []
+            // Reverser — cotisation ouverte, solde > 0
+            if (!isTontine && montantDisponible > 0) trio.push(
+              <button key="reverser"
+                onClick={() => navigate(`/cagnottes/${cagnotte.id}/reverser`, {
+                  state: { titre: cagnotte.titre, montantDisponible, participants: cagnotte.participants }
+                })}
+                style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.accent}`, color: T.accent, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
+              >
+                <IconDownload /> Reverser
+              </button>
+            )
+            // Inviter — masqué si tontine pleine/lancée ou cagnotte clôturée
+            if (inviterVisible) trio.push(
+              <button key="inviter"
+                onClick={partagerLien}
+                style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.primary}`, color: T.primary, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
+              >
+                <IconShare /> Inviter
+              </button>
+            )
+            // Clôturer — cotisation ouverte avec historique
+            if (peutFermer) trio.push(
+              <button key="cloturer"
+                onClick={lancerFermeture}
+                style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.warning}`, color: T.warning, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
+              >
+                <IconLock /> Clôturer
+              </button>
+            )
+            return (
+              <>
+                {trio.length > 0 && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* Toujours 3 emplacements : un bouton seul garde un tiers. */}
+                    {trio}
+                    {Array.from({ length: 3 - trio.length }).map((_, i) => (
+                      <div key={`vide-${i}`} style={{ flex: 1 }} />
+                    ))}
+                  </div>
+                )}
 
-          <button
-            onClick={partagerLien}
-            style={{ width: '100%', height: '50px', borderRadius: '16px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.border}`, color: T.textStrong, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-          >
-            <IconShare /> Partager le lien
-          </button>
+                {/* Supprimer — cagnotte vierge (aucune transaction) */}
+                {peutSupprimer && (
+                  <button
+                    onClick={() => setSupprimerModal(true)}
+                    style={{ width: '100%', height: '48px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.error}`, color: T.error, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <IconTrash /> Supprimer
+                  </button>
+                )}
+              </>
+            )
+          })()}
+
+          {/* ══ Action cotiseur : Quitter ══ */}
           {peutQuitter && (
             <button
               onClick={() => setQuitterModal(true)}
-              style={{ width: '100%', height: '50px', borderRadius: '16px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.error}`, color: T.error, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              style={{ width: '100%', height: '48px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.error}`, color: T.error, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
-              <IconExit /> Quitter cette cagnotte
+              <IconExit /> {isTontine ? 'Quitter cette tontine' : 'Quitter cette cagnotte'}
             </button>
           )}
         </div>
@@ -1277,39 +1698,39 @@ export default function MobileDetailCagnotte() {
         actionLabel={pendingAction === 'participer' ? 'Rejoindre la tontine' : 'Cotiser'}
       />
 
-      {/* ── Modale Quitter ────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {quitterModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(26,31,30,0.55)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
-            onClick={() => setQuitterModal(false)}
-          >
-            <motion.div
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-              onClick={e => e.stopPropagation()}
-              style={{ background: T.surface, borderRadius: '24px 24px 0 0', padding: '20px 24px 40px', width: '100%' }}
-            >
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: T.border, margin: '0 auto 20px' }} />
-              <p style={{ fontSize: '20px', fontWeight: 800, color: T.textStrong, marginBottom: '8px' }}>Quitter cette cagnotte ?</p>
-              <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '24px', lineHeight: 1.5 }}>
-                {isTontine
-                  ? 'Vous serez retiré de la liste des participants. Cette action est irréversible.'
-                  : "Vous ne ferez plus partie de cette cotisation. Vous pourrez rejoindre à nouveau via le lien d'invitation."}
-              </p>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => setQuitterModal(false)} style={{ flex: 1, height: '50px', borderRadius: '14px', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textStrong, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
-                  Annuler
-                </button>
-                <button onClick={() => { setQuitterModal(false); navigate(-1) }} style={{ flex: 1, height: '50px', borderRadius: '14px', border: 'none', background: T.error, color: '#fff', fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
-                  Quitter
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ── Modale Quitter (appel API réel) ─────────────────────────────────── */}
+      <ConfirmSheet
+        open={quitterModal}
+        titre={isTontine ? 'Quitter cette tontine ?' : 'Quitter cette cagnotte ?'}
+        message={isTontine
+          ? 'Vous serez retiré de la liste des membres. Cette action est irréversible.'
+          : "Vous ne ferez plus partie de cette cagnotte. Vous pourrez rejoindre à nouveau via le lien d'invitation."}
+        labelConfirme="Quitter"
+        danger
+        onConfirme={confirmerQuitter}
+        onAnnule={() => setQuitterModal(false)}
+      />
+
+      {/* ── Modale Clôturer (solde à zéro — clôture directe) ─────────────────── */}
+      <ConfirmSheet
+        open={fermerModal}
+        titre="Clôturer cette cagnotte ?"
+        message="Cette cagnotte sera définitivement clôturée. Cette action est irréversible."
+        labelConfirme="Clôturer"
+        onConfirme={confirmerFermeture}
+        onAnnule={() => setFermerModal(false)}
+      />
+
+      {/* ── Modale Supprimer ─────────────────────────────────────────────────── */}
+      <ConfirmSheet
+        open={supprimerModal}
+        titre="Supprimer cette cagnotte ?"
+        message="Cette action est irréversible. La cagnotte sera définitivement supprimée."
+        labelConfirme="Supprimer"
+        danger
+        onConfirme={confirmerSuppression}
+        onAnnule={() => setSupprimerModal(false)}
+      />
     </div>
   )
 }

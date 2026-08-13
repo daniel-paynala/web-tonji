@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "549UF4W3FB.com.paynala.tondo",
+        "paths": [
+          "/rejoindre/*",
+          "/recu/*"
+        ]
+      }
+    ]
+  }
+}

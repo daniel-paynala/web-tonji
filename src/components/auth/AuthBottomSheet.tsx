@@ -13,18 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { T } from '@/lib/tokens'
 import { requestOtp, verifyOtpLogin, verifyOtpSignup } from '@/lib/authApi'
 import { useAuthStore } from '@/store/authStore'
-import type { ApiError } from '@/lib/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function normaliserGabon(raw: string): string {
-  const clean = raw.replace(/\D/g, '')
-  if (clean.startsWith('241') && clean.length === 12) return `+${clean}`
-  if (clean.startsWith('00241')) return `+241${clean.slice(5)}`
-  if (clean.startsWith('0') && clean.length === 9) return `+241${clean.slice(1)}`
-  if (clean.length === 8) return `+241${clean}`
-  return `+241${clean}`
-}
 
 function isErrMsg(e: unknown): string {
   if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
@@ -258,7 +248,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
       }}
     >
       {loading
-        ? <span style={{ width: 20, height: 20, border: `2.5px solid rgba(244,236,224,0.4)`, borderTopColor: T.surface, borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+        ? <span style={{ width: 20, height: 20, border: `2.5px solid rgba(246,247,244,0.4)`, borderTopColor: T.surface, borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
         : children}
     </button>
   )
@@ -334,7 +324,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
                     <input
                       type="tel"
                       inputMode="numeric"
-                      placeholder="07 XX XX XX XX"
+                      placeholder="07 xx xx xx xx"
                       value={numero}
                       onChange={e => { setNumero(e.target.value.replace(/\D/g, '')); setErreur('') }}
                       onKeyDown={e => e.key === 'Enter' && envoyerOtp()}
@@ -381,7 +371,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
                   </p>
 
                   {!userExists && (
-                    <div style={{ marginTop: '16px', padding: '10px 14px', borderRadius: '12px', background: `rgba(15,76,92,0.07)`, border: `1px solid rgba(15,76,92,0.20)` }}>
+                    <div style={{ marginTop: '16px', padding: '10px 14px', borderRadius: '12px', background: `rgba(10,104,71,0.07)`, border: `1px solid rgba(10,104,71,0.20)` }}>
                       <p style={{ fontSize: '12px', color: T.primary, fontWeight: 600, lineHeight: 1.5 }}>
                         Numéro non inscrit — après validation du code, vous pourrez créer un compte en 10 secondes.
                       </p>
@@ -393,7 +383,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
               {/* ── Étape 3 : nom + prénom (nouveau compte) ── */}
               {etape === 'nom_prenom' && (
                 <motion.div key="nom_prenom" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
-                  <div style={{ marginBottom: '14px', padding: '10px 14px', borderRadius: '12px', background: `rgba(201,123,74,0.08)`, border: `1px solid rgba(201,123,74,0.30)` }}>
+                  <div style={{ marginBottom: '14px', padding: '10px 14px', borderRadius: '12px', background: `rgba(232,168,48,0.08)`, border: `1px solid rgba(232,168,48,0.30)` }}>
                     <p style={{ fontSize: '12px', color: T.accent, fontWeight: 600, lineHeight: 1.5 }}>
                       Votre date de naissance n'est pas requise maintenant. Vous pourrez la compléter plus tard pour créer vos propres cagnottes.
                     </p>
@@ -404,7 +394,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
                       <label style={{ fontSize: '13px', fontWeight: 700, color: T.textSec, display: 'block', marginBottom: '6px' }}>Prénom</label>
                       <input
                         type="text"
-                        placeholder="Jean"
+                        placeholder="jean"
                         value={prenom}
                         onChange={e => { setPrenom(e.target.value); setErreur('') }}
                         autoFocus
@@ -420,7 +410,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
                       <label style={{ fontSize: '13px', fontWeight: 700, color: T.textSec, display: 'block', marginBottom: '6px' }}>Nom</label>
                       <input
                         type="text"
-                        placeholder="OBAME"
+                        placeholder="obame"
                         value={nom}
                         onChange={e => { setNom(e.target.value); setErreur('') }}
                         onKeyDown={e => e.key === 'Enter' && creerCompteLight()}
@@ -449,7 +439,7 @@ export default function AuthBottomSheet({ open, onClose, onSuccess, actionLabel,
               {/* ── En cours ── */}
               {etape === 'en_cours' && (
                 <motion.div key="en_cours" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '32px 0' }}>
-                  <div style={{ width: 40, height: 40, border: `3px solid rgba(15,76,92,0.2)`, borderTopColor: T.primary, borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 16px' }} />
+                  <div style={{ width: 40, height: 40, border: `3px solid rgba(10,104,71,0.2)`, borderTopColor: T.primary, borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 16px' }} />
                   <p style={{ fontSize: '15px', fontWeight: 600, color: T.textSec }}>{actionLabel}…</p>
                 </motion.div>
               )}

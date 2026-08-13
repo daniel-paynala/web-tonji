@@ -6,22 +6,23 @@
 
 @layer base {
   :root {
-    --color-primary:           #0F4C5C;
-    --color-primary-light:     #15616F;
-    --color-accent:            #C97B4A;
-    --color-accent-light:      #D08555;
-    --color-surface:           #F4ECE0;
-    --color-surface-elevated:  #FBF7F0;
-    --color-surface-deep:      #EAE0CF;
-    --color-text-strong:       #1A1F1E;
-    --color-text-secondary:    #5C625F;
-    --color-text-tertiary:     #8A8F8C;
-    --color-border:            #D8CFC0;
-    --color-border-strong:     #C4BAA8;
-    --color-success:           #6B8E4E;
-    --color-warning:           #D49B3F;
-    --color-error:             #A04434;
-    --color-info:              #3B7A8A;
+    /* Palette Tonji — brand board validé 2026-06-12. Source : paynala_colors.dart */
+    --color-primary:           #0A6847;
+    --color-primary-light:     #0D7C5F;
+    --color-accent:            #E8A830;
+    --color-accent-light:      #F5D078;
+    --color-surface:           #F6F7F4;
+    --color-surface-elevated:  #FFFFFF;
+    --color-surface-deep:      #ECEDE9;
+    --color-text-strong:       #14202E;
+    --color-text-secondary:    #4A5568;
+    --color-text-tertiary:     #8A94A0;
+    --color-border:            #E8EDE9;
+    --color-border-strong:     #D4DAD5;
+    --color-success:           #1A7A50;
+    --color-warning:           #C48A1A;
+    --color-error:             #D94F3D;
+    --color-info:              #0A6847;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,48 +31,48 @@
     font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #F4ECE0;
-    color: #1A1F1E;
+    background-color: #F6F7F4;
+    color: #14202E;
     /* Prevent horizontal scroll on mobile */
     overflow-x: hidden;
   }
 
-  ::selection { background: rgba(15,76,92,0.15); color: var(--color-text-strong); }
+  ::selection { background: rgba(10,104,71,0.15); color: var(--color-text-strong); }
 
   /* Safe area for phones with home indicator */
   .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 
 @layer utilities {
-  .text-on-primary  { color: #F4ECE0; }
-  .text-on-accent   { color: #1A1F1E; }
+  .text-on-primary  { color: #F6F7F4; }
+  .text-on-accent   { color: #14202E; }
 
   .text-gradient {
-    background: linear-gradient(135deg, #0F4C5C 0%, #C97B4A 100%);
+    background: linear-gradient(135deg, #0A6847 0%, #E8A830 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .glass {
-    background: rgba(251, 247, 240, 0.75);
+    background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
 
   .glass-dark {
-    background: rgba(15, 76, 92, 0.65);
+    background: rgba(10, 104, 71, 0.65);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
 
   .bg-mesh {
-    background-color: #0A3540;
+    background-color: #053824;
     background-image:
-      radial-gradient(at 20% 30%, rgba(15,76,92,0.9) 0px, transparent 50%),
-      radial-gradient(at 80% 10%, rgba(201,123,74,0.4) 0px, transparent 50%),
-      radial-gradient(at 60% 80%, rgba(21,97,111,0.5) 0px, transparent 50%),
-      radial-gradient(at 10% 90%, rgba(201,123,74,0.2) 0px, transparent 50%);
+      radial-gradient(at 20% 30%, rgba(10,104,71,0.9) 0px, transparent 50%),
+      radial-gradient(at 80% 10%, rgba(232,168,48,0.4) 0px, transparent 50%),
+      radial-gradient(at 60% 80%, rgba(13,124,95,0.5) 0px, transparent 50%),
+      radial-gradient(at 10% 90%, rgba(232,168,48,0.2) 0px, transparent 50%);
   }
 
   .shimmer {

@@ -16,6 +16,10 @@ export type PeriodiciteWire   = 'hebdomadaire' | 'mensuelle'
 export type JourSemaineWire   = 'lundi'|'mardi'|'mercredi'|'jeudi'|'vendredi'|'samedi'|'dimanche'
 export type FreqPenaliteWire  = 'heure' | 'jour'
 export type StatutPaiementWire = 'paye' | 'en_retard' | string
+// Visibilité d'une cagnotte (miroir enum Visibilite Dart) — wire « prive » | « public ».
+export type VisibiliteWire    = 'prive' | 'public'
+// Cycle de modération (miroir enum StatutValidation Dart) — snake_case.
+export type StatutValidationWire = 'non_requis' | 'en_attente' | 'approuvee' | 'rejetee' | 'suspendue'
 
 export interface RawParticipant {
   id: string
@@ -77,6 +81,12 @@ export interface RawCagnotte {
   reversement_auto?: boolean
   reversement_auto_frequence_mois?: number | null
   prochain_retrait?: string | null
+  // Visibilité & modération (cagnottes publiques — feature P2).
+  visibilite?: VisibiliteWire | null
+  statut_validation?: StatutValidationWire | null
+  description?: string | null
+  // Nom du créateur — renseigné uniquement dans les réponses publiques (Explorer / détail).
+  createur?: string | null
   // champs présents uniquement dans la réponse détail
   participants?: RawParticipant[]
   historique?: RawPaiement[]
@@ -91,6 +101,37 @@ export type StatutCagnotte  = 'active' | 'en_cours' | 'cloturee'
 export type RoleUtilisateur = 'gerant' | 'cotiseur'
 export type Periodicite     = 'hebdomadaire' | 'mensuelle'
 export type StatutPaiement  = 'paye' | 'en_attente' | 'en_retard'
+// Visibilité applicative (miroir enum Visibilite Dart).
+export type Visibilite      = 'prive' | 'public'
+// Statut de modération applicatif (miroir enum StatutValidation Dart).
+export type StatutValidation = 'non_requis' | 'en_attente' | 'approuvee' | 'rejetee' | 'suspendue'
+
+// Libellé court du badge de statut affiché sur la carte créateur (miroir getter Dart `badge`).
+export function badgeStatutValidation(s: StatutValidation): string {
+  switch (s) {
+    case 'en_attente': return 'En attente de validation'
+    case 'approuvee':  return 'Publique'
+    case 'rejetee':    return 'Refusée'
+    case 'suspendue':  return 'Suspendue'
+    default:           return ''
+  }
+}
+
+// Désérialise la visibilité ; tout ce qui n'est pas « public » est privé (miroir Dart).
+function visibiliteFromWire(v?: string | null): Visibilite {
+  return v === 'public' ? 'public' : 'prive'
+}
+
+// Désérialise le statut de modération ; « non_requis » si absent/inconnu (miroir Dart).
+function statutValidationFromWire(v?: string | null): StatutValidation {
+  switch (v) {
+    case 'en_attente': return 'en_attente'
+    case 'approuvee':  return 'approuvee'
+    case 'rejetee':    return 'rejetee'
+    case 'suspendue':  return 'suspendue'
+    default:           return 'non_requis'
+  }
+}
 
 export interface Participant {
   id: string
@@ -151,6 +192,24 @@ export interface Cagnotte {
   penaliteCourante: number
   reversementAuto: boolean
   prochaineDate?: string
+  // Visibilité : privée (défaut) ou publique (crowdfunding modéré).
+  visibilite: Visibilite
+  // Statut de modération (cagnottes publiques) ; « non_requis » si privée.
+  statutValidation: StatutValidation
+  // Description / histoire de la cagnotte (surtout pour les publiques).
+  description?: string
+  // Nom du créateur — renseigné uniquement pour les cartes publiques (Explorer).
+  createur?: string
+}
+
+// Vrai si la cagnotte est publique (crowdfunding ouvert à tous) — miroir getter Dart estPublique.
+export function estPublique(c: Cagnotte): boolean {
+  return c.visibilite === 'public'
+}
+
+// Vrai si publique mais pas encore approuvée (affiche un badge de statut) — miroir getter Dart enModeration.
+export function enModeration(c: Cagnotte): boolean {
+  return c.visibilite === 'public' && c.statutValidation !== 'approuvee'
 }
 
 export interface CagnotteDetail extends Cagnotte {
@@ -236,6 +295,41 @@ function fromRaw(r: RawCagnotte): Cagnotte {
     penaliteCourante:   r.penalite_courante ?? 0,
     reversementAuto:    r.reversement_auto ?? false,
     prochaineDate:      r.prochain_retrait ?? undefined,
+    visibilite:         visibiliteFromWire(r.visibilite),
+    statutValidation:   statutValidationFromWire(r.statut_validation),
+    description:        r.description ?? undefined,
+    createur:           r.createur ?? undefined,
+  }
+}
+
+/**
+ * Parse une carte PUBLIQUE (forme allégée de /api/public/cagnottes).
+ * Champs absents (type/statut/role…) → valeurs par défaut cohérentes :
+ * une cagnotte publique est toujours ouverte, active et approuvée.
+ * Miroir de _publiqueFromJson (cagnottes_repository.dart).
+ */
+function publiqueFromRaw(r: RawCagnotte): Cagnotte {
+  return {
+    id:                 r.reference,
+    titre:              r.titre ?? '',
+    type:               'cotisation',
+    statut:             'active',
+    montantCollecte:    r.montant_collecte ?? 0,
+    nombreParticipants: 0,
+    nombreInscrits:     r.nombre_inscrits ?? 0,
+    dateCreation:       r.date_creation ?? new Date().toISOString(),
+    role:               'cotiseur',
+    dateFin:            r.date_fin ?? undefined,
+    montantCible:       r.montant_cible ?? undefined,
+    intervalle:         1,
+    rotationTerminee:   false,
+    penaliteActive:     false,
+    penaliteCourante:   0,
+    reversementAuto:    false,
+    description:        r.description ?? undefined,
+    createur:           r.createur ?? undefined,
+    visibilite:         'public',
+    statutValidation:   'approuvee',
   }
 }
 
@@ -311,11 +405,51 @@ export interface CreerCagnottePayload {
   date_fin?: string
   reversement_auto?: boolean
   reversement_auto_frequence_mois?: number
+  // Visibilité : publique réservée aux cagnottes ouvertes (tontine = toujours privée).
+  visibilite?: VisibiliteWire
+  description?: string
 }
 
 export async function creerCagnotte(payload: CreerCagnottePayload): Promise<Cagnotte> {
   const data = await api.post<{ cagnotte: RawCagnotte }>('/api/mobile/cagnottes', payload)
   return fromRaw(data.cagnotte)
+}
+
+// ── Cagnottes publiques (Explorer / détail public) ─────────────────────────────
+
+/**
+ * Liste les cagnottes PUBLIQUES approuvées (page Explorer / « Découvrir »).
+ * GET /api/public/cagnottes?limit&offset&tri — réponse allégée { data: RawCagnotte[] }.
+ * Miroir de CagnottesRepository.listerPubliques (Flutter).
+ */
+export async function listerCagnottesPubliques(
+  opts: { limit?: number; offset?: number; tri?: string } = {},
+): Promise<Cagnotte[]> {
+  const limit  = opts.limit  ?? 20
+  const offset = opts.offset ?? 0
+  const tri    = opts.tri    ?? 'recentes'
+  const data = await api.get<{ data: RawCagnotte[] }>(
+    `/api/public/cagnottes?limit=${limit}&offset=${offset}&tri=${tri}`,
+  )
+  return (data.data ?? []).map(publiqueFromRaw)
+}
+
+/**
+ * Détail PUBLIC d'une cagnotte (page « Contribuer » / partage).
+ * GET /api/public/cagnottes/:ref — { cagnotte: RawCagnotte } (forme allégée).
+ * Miroir de CagnottesRepository.chargerPublique (Flutter). Retourne null si 404.
+ */
+export async function chargerCagnottePublique(reference: string): Promise<Cagnotte | null> {
+  try {
+    const data = await api.get<{ cagnotte?: RawCagnotte } & RawCagnotte>(
+      `/api/public/cagnottes/${reference}`,
+    )
+    const raw: RawCagnotte = data.cagnotte ?? data
+    if (!raw || !raw.reference) return null
+    return publiqueFromRaw(raw)
+  } catch {
+    return null
+  }
 }
 
 export interface CotisationResult {
@@ -413,6 +547,7 @@ export interface InfoCagnottePublique {
   montantParCycle?: number
   montantCible?: number
   createur?: string
+  description?: string
 }
 
 // Endpoint public — pas de token requis. Utilisé par InvitationPage et DetailCagnottePage (non connecté).
@@ -435,6 +570,8 @@ export async function chargerInfoCagnottePublique(ref: string): Promise<InfoCagn
       montantCollecte:    raw.montant_collecte ?? 0,
       montantParCycle:    raw.montant_par_cycle ?? undefined,
       montantCible:       raw.montant_cible ?? undefined,
+      createur:           raw.createur ?? undefined,
+      description:        raw.description ?? undefined,
     }
   } catch {
     return null

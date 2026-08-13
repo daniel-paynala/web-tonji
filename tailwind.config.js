@@ -7,37 +7,39 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Palette « Forêt équatoriale » — source de vérité : paynala_colors.dart
+        // Palette de marque Tonji (vert forêt / or) — ALIGNÉE sur les tokens
+        // mobile (src/lib/tokens.ts → T) qui sont la source de vérité couleur.
+        // (Remplace l'ancienne « Forêt équatoriale » teal/terracotta.)
         primary: {
-          DEFAULT: '#0F4C5C',
-          light:   '#15616F',
-          lighter: '#1A6F7F',
-          dark:    '#0A3540',
+          DEFAULT: '#0A6847',   // T.primary
+          light:   '#0D7C5F',   // T.primaryLight
+          lighter: '#1A9060',   // T.primaryLighter
+          dark:    '#064D34',   // T.primaryDark
         },
         accent: {
-          DEFAULT: '#C97B4A',
-          light:   '#D08555',
-          dark:    '#B76E45',
+          DEFAULT: '#E8A830',   // T.accent (or)
+          light:   '#F5D078',   // T.accentLight
+          dark:    '#C48A1A',   // T.accentDark
         },
         surface: {
-          DEFAULT:  '#F4ECE0',
-          elevated: '#FBF7F0',
-          deep:     '#EAE0CF',
-          deeper:   '#D9D2C0',
+          DEFAULT:  '#F6F7F4',  // T.surface (ivoire)
+          elevated: '#FFFFFF',  // T.surfaceEl
+          deep:     '#ECEDE9',  // T.surfaceDeep
+          deeper:   '#DFE1DC',  // T.surfaceDeeper
         },
         text: {
-          strong:    '#1A1F1E',
-          secondary: '#5C625F',
-          tertiary:  '#8A8F8C',
-          inverse:   '#F4ECE0',
+          strong:    '#14202E', // T.textStrong
+          secondary: '#4A5568', // T.textSec
+          tertiary:  '#8A94A0', // T.textTert
+          inverse:   '#F6F7F4', // texte sur fond sombre = surface
         },
         border: {
-          DEFAULT: '#D8CFC0',
-          strong:  '#C4BAA8',
+          DEFAULT: '#E8EDE9',   // T.border
+          strong:  '#D4DAD5',   // T.borderStr
         },
-        success:  '#6B8E4E',
-        warning:  '#D49B3F',
-        error:    '#A04434',
+        success:  '#1A7A50',    // T.success
+        warning:  '#C48A1A',    // T.warning
+        error:    '#D94F3D',    // T.error / coral
         info:     '#3B7A8A',
       },
       fontFamily: {
@@ -61,16 +63,16 @@ export default {
         md:    '0 4px 16px rgba(26,31,30,0.10), 0 2px 6px rgba(26,31,30,0.06)',
         lg:    '0 8px 32px rgba(26,31,30,0.12), 0 4px 12px rgba(26,31,30,0.08)',
         xl:    '0 16px 48px rgba(26,31,30,0.16), 0 8px 20px rgba(26,31,30,0.10)',
-        glow:  '0 0 24px rgba(201,123,74,0.30)',
-        'glow-primary': '0 0 24px rgba(15,76,92,0.35)',
+        glow:  '0 0 24px rgba(232,168,48,0.30)',
+        'glow-primary': '0 0 24px rgba(10,104,71,0.35)',
         inner: 'inset 0 2px 4px rgba(26,31,30,0.06)',
       },
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #0F4C5C 0%, #0A3540 100%)',
-        'gradient-accent':  'linear-gradient(135deg, #C97B4A 0%, #B76E45 100%)',
-        'gradient-mesh':    'linear-gradient(135deg, #0A3540 0%, #0F4C5C 50%, #15616F 100%)',
-        'gradient-surface': 'linear-gradient(180deg, #FBF7F0 0%, #F4ECE0 100%)',
-        'gradient-card':    'linear-gradient(145deg, rgba(251,247,240,0.95) 0%, rgba(244,236,224,0.7) 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #0A6847 0%, #064D34 100%)',
+        'gradient-accent':  'linear-gradient(135deg, #E8A830 0%, #C48A1A 100%)',
+        'gradient-mesh':    'linear-gradient(135deg, #064D34 0%, #0A6847 50%, #1A9060 100%)',
+        'gradient-surface': 'linear-gradient(180deg, #FFFFFF 0%, #F6F7F4 100%)',
+        'gradient-card':    'linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(246,247,244,0.7) 100%)',
       },
       transitionDuration: {
         fast: '150ms',

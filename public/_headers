@@ -1,0 +1,7 @@
+# En-têtes servis par le Worker Cloudflare (static assets).
+
+# Le fichier apple-app-site-association n'a pas d'extension : sans cette règle,
+# Cloudflare le sert en application/octet-stream et iOS refuse de le lire, donc
+# les universal links ne fonctionnent pas. Apple exige application/json.
+/.well-known/apple-app-site-association
+  Content-Type: application/json

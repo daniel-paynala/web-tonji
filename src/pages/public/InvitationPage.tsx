@@ -139,8 +139,8 @@ function CarteCagnotte({ info, ref: refNum }: { info: InfoCagnottePublique | nul
   return (
     <div style={{
       borderRadius: '18px', padding: '16px 18px', marginBottom: '24px',
-      background: isTontine ? `rgba(15,76,92,0.08)` : `rgba(201,123,74,0.10)`,
-      border: `1px solid ${isTontine ? 'rgba(15,76,92,0.25)' : 'rgba(201,123,74,0.30)'}`,
+      background: isTontine ? `rgba(10,104,71,0.08)` : `rgba(232,168,48,0.10)`,
+      border: `1px solid ${isTontine ? 'rgba(10,104,71,0.25)' : 'rgba(232,168,48,0.30)'}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
         <span style={{ color: isTontine ? P.primary : P.accent }}>
@@ -485,10 +485,10 @@ export default function InvitationPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <Champ label="Prénom" error={errInfos.prenom}>
-                    <input autoFocus placeholder="Jean-Pierre" value={prenom} onChange={e => { setPrenom(e.target.value); setErrInfos(p => ({ ...p, prenom: undefined })) }} style={inputStyle(errInfos.prenom)} />
+                    <input autoFocus placeholder="jean-pierre" value={prenom} onChange={e => { setPrenom(e.target.value); setErrInfos(p => ({ ...p, prenom: undefined })) }} style={inputStyle(errInfos.prenom)} />
                   </Champ>
                   <Champ label="Nom" error={errInfos.nom}>
-                    <input placeholder="Obame" value={nom} onChange={e => { setNom(e.target.value); setErrInfos(p => ({ ...p, nom: undefined })) }} style={inputStyle(errInfos.nom)} />
+                    <input placeholder="obame" value={nom} onChange={e => { setNom(e.target.value); setErrInfos(p => ({ ...p, nom: undefined })) }} style={inputStyle(errInfos.nom)} />
                   </Champ>
                 </div>
                 <Champ label="Date de naissance" error={errInfos.ddn}>

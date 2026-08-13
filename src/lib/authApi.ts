@@ -18,6 +18,8 @@ export interface AuthUser {
   date_naissance?: string
   email?: string
   adresse?: string
+  // Sexe (M/F) — propagé au store pour le profil progressif (cf. MobileProfil).
+  sexe?: string
 }
 
 export interface AuthSession {
@@ -59,6 +61,9 @@ export function verifyOtpSignup(
   otp: string,
   nom: string,
   prenom: string,
+  // DDN optionnelle : vide ('') ⇒ compte « light » sans date de naissance fournie.
+  // On retombe alors sur le placeholder, l'âge restant vérifié par certification.
+  dateNaissance: string = '',
 ): Promise<AuthSession> {
   return api.post<AuthSession>('/api/mobile/auth/verify-otp', {
     indicatif,
@@ -66,7 +71,8 @@ export function verifyOtpSignup(
     otp,
     nom,
     prenom,
-    date_naissance: '2000-01-01', // placeholder — âge vérifié par certification
+    // DDN fournie par l'appelant si présente, sinon placeholder par défaut.
+    date_naissance: dateNaissance.trim() ? dateNaissance : '2000-01-01',
     certifie_majeur: true,
     type_client: 'particulier',
     device_name: 'Tonji Web',

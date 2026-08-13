@@ -1,30 +1,136 @@
 /**
- * Écran de connexion mobile — reproduction exacte du welcome_screen.dart Flutter.
+ * Écran de connexion mobile — reproduction fidèle de :
+ *   - welcome_screen.dart   (slider promesses + champ numéro + Valider / Créer un compte + modale « numéro non inscrit »)
+ *   - welcome_slider.dart   (slider 4 promesses, auto-avance 3,8 s, dots pill)
+ *   - otp_verify_screen.dart (vérification OTP : 6 cases, cooldown 60 s, auto-advance, autofill)
  *
- * Structure :
- *  - Fond surface (#F4ECE0) + cercles lumineux décoratifs
- *  - Brand "Tonji" + tagline en haut
- *  - Slider de 3 promesses (auto-avance)
- *  - Card basse : saisie numéro → envoi OTP → vérification 6 cases
+ * Les 4 chemins du flow auth (cf. Flutter) :
+ *   A. Valider + numéro inscrit       → écran OTP (login) → /dashboard
+ *   B. Valider + numéro NON inscrit   → modale « Numéro non inscrit »
+ *        B1. Rectifier                → ferme la modale, le champ garde sa valeur
+ *        B2. Créer un compte          → /inscription avec numéro pré-rempli + verrouillé
+ *   C. Bouton « Créer un compte »     → /inscription (sans prefill)
+ *
+ * Fond vert primaire (PaynalaColors.primary) + halos, comme la splash, pour
+ * une continuité visuelle directe. La carte basse crème porte la saisie.
+ * Le slider se masque dès que le champ téléphone est focus (libère la place).
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
 import { T } from '@/lib/tokens'
 import { requestOtp, verifyOtpLogin } from '@/lib/authApi'
 import { ApiError } from '@/lib/api'
 
-// ── Slides welcome ────────────────────────────────────────────────────────────
-const SLIDES = [
-  { icon: '🤝', title: 'Tontines solidaires', desc: 'Organisez vos tours de contribution entre proches en toute confiance.' },
-  { icon: '💰', title: 'Collectes simplifiées', desc: 'Créez une cagnotte en quelques secondes et partagez le lien.' },
-  { icon: '📱', title: 'Paiement Mobile Money', desc: 'Airtel Money intégré. Versez et recevez sans quitter l\'app.' },
+// ── Constantes process (alignées Flutter) ──────────────────────────────────────
+const INDICATIF = '+241'              // indicatif Gabon fixe pour l'écran Welcome
+const LONGUEUR_CODE = 6               // longueur fixe du code OTP
+const COOLDOWN_INIT = 60             // secondes avant renvoi (otp_verify_screen)
+const SLIDER_INTERVAL = 3800        // ms entre deux avances auto (welcome_slider)
+
+// ── Données des slides (textes EXACTS de welcome_slider.dart) ───────────────────
+// onGreen = true : icône blanche (ou dorée si isAccent), texte blanc.
+interface SlideData {
+  titre: string
+  sous: string
+  isAccent: boolean
+  // Icône Material reproduite en SVG inline (équivalent visuel).
+  icon: (color: string) => React.ReactNode
+}
+
+// SVG inline équivalents aux IconData Material utilisées côté Flutter.
+const icFamily = (c: string) => (
+  // family_restroom_rounded
+  <svg width="36" height="36" viewBox="0 0 24 24" fill={c}><path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zM4 18v-6H2.5l1.96-5.87C4.74 5.29 5.51 4.74 6.4 4.81c.05.01.93.19.93.19s.89.16.93.19c.89-.07 1.66.48 1.94 1.32L12.16 12H10.5v6h-2v4h-2v-4H4zm5.5-12c0-.83-.67-1.5-1.5-1.5S6.5 5.17 6.5 6 7.17 7.5 8 7.5 9.5 6.83 9.5 6zM20 18v-4h-1v-2c0-1.1-.9-2-2-2s-2 .9-2 2v2h-1v4h2v4h2v-4h2z"/></svg>
+)
+const icCelebration = (c: string) => (
+  // celebration_rounded
+  <svg width="36" height="36" viewBox="0 0 24 24" fill={c}><path d="M2 22l3.5-10.5L12.5 18.5 2 22zm6.6-7.6L7 11l8-8 3.5 3.5-8 8zM14 6l1.5-3.5L19 1l-1.5 3.5L14 6zm5 5l3.5-1.5L21 5l-3.5 1.5L19 11zm-7-7l1-2.5L15.5 0l-1 2.5L12 4zm10 6l-2.5 1L18 8l2.5-1L22 10z"/></svg>
+)
+const icShield = (c: string) => (
+  // shield_rounded
+  <svg width="36" height="36" viewBox="0 0 24 24" fill={c}><path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z"/></svg>
+)
+const icDiversity = (c: string) => (
+  // diversity_3_rounded (cercle de personnes)
+  <svg width="36" height="36" viewBox="0 0 24 24" fill={c}><path d="M12 2a3 3 0 100 6 3 3 0 000-6zM4 9a3 3 0 100 6 3 3 0 000-6zm16 0a3 3 0 100 6 3 3 0 000-6zM7 18a3 3 0 116 0 3 3 0 01-6 0zm5-7a4 4 0 00-3.2 1.6A4.99 4.99 0 0110 16h4a4.99 4.99 0 011.2-3.4A4 4 0 0012 11z"/></svg>
+)
+
+const SLIDES: SlideData[] = [
+  { titre: 'Cotisez pour la famille',        sous: 'Une tontine en quelques minutes.',          isAccent: false, icon: icFamily },
+  { titre: 'Mariage, anniversaire, soutien', sous: 'Une cagnotte pour chaque occasion.',         isAccent: true,  icon: icCelebration },
+  { titre: 'Sécurisé et simple',             sous: "Mobile Money et code SMS — rien d'autre.",    isAccent: false, icon: icShield },
+  { titre: 'Votre cercle, votre tontine',    sous: 'Partagez le lien, gérez les membres.',        isAccent: true,  icon: icDiversity },
 ]
 
-// ── OTP digit input ───────────────────────────────────────────────────────────
-function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// ── Slider de promesses (welcome_slider.dart, onGreen=true) ─────────────────────
+function WelcomeSlider() {
+  const [index, setIndex] = useState(0)
+
+  // Auto-avance circulaire toutes les 3,8 s (Timer.periodic côté Flutter).
+  useEffect(() => {
+    const t = setInterval(() => setIndex(i => (i + 1) % SLIDES.length), SLIDER_INTERVAL)
+    return () => clearInterval(t)
+  }, [])
+
+  const s = SLIDES[index]
+  // Couleurs « onGreen » : icône blanche ou dorée (accent), cercle translucide.
+  const iconColor = s.isAccent ? T.accent : '#FFFFFF'
+  const circleBg = s.isAccent ? 'rgba(232,168,48,0.20)' : 'rgba(255,255,255,0.15)'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={index}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: [0.33, 1, 0.68, 1] }}  // easeOutCubic
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8px' }}
+          >
+            {/* Cercle radial 76px + icône 36px */}
+            <div style={{
+              width: '76px', height: '76px', borderRadius: '50%',
+              background: `radial-gradient(circle, ${circleBg} 0%, transparent 75%)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {s.icon(iconColor)}
+            </div>
+            <p style={{ marginTop: '14px', fontSize: '17px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.2px', textAlign: 'center' }}>
+              {s.titre}
+            </p>
+            <p style={{ marginTop: '4px', fontSize: '14px', color: 'rgba(255,255,255,0.72)', textAlign: 'center' }}>
+              {s.sous}
+            </p>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Dots pill : actif = barre large blanche, inactif = point translucide */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px', gap: '8px' }}>
+        {SLIDES.map((_, i) => {
+          const actif = i === index
+          return (
+            <div key={i} style={{
+              width: actif ? '22px' : '7px', height: '7px', borderRadius: '4px',
+              background: actif ? '#FFFFFF' : 'rgba(255,255,255,0.30)',
+              transition: 'all 0.25s ease',
+            }} />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Saisie OTP : 6 cases avec auto-advance, backspace, paste/autofill ───────────
+function OtpInput({
+  value, onChange, error,
+}: { value: string; onChange: (v: string) => void; error: boolean }) {
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -37,101 +143,150 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
     const digit = e.target.value.replace(/\D/g, '').slice(-1)
     const arr = value.split('')
     arr[i] = digit
-    const next = arr.join('')
-    onChange(next)
-    if (digit && i < 5) inputsRef.current[i + 1]?.focus()
+    onChange(arr.join(''))
+    if (digit && i < LONGUEUR_CODE - 1) inputsRef.current[i + 1]?.focus()
   }
 
+  // Colle / autofill OS : remplit toutes les cases d'un coup.
   const handlePaste = (e: React.ClipboardEvent) => {
-    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    onChange(text.padEnd(6, ''))
-    inputsRef.current[Math.min(text.length, 5)]?.focus()
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, LONGUEUR_CODE)
+    onChange(text.padEnd(LONGUEUR_CODE, ''))
+    inputsRef.current[Math.min(text.length, LONGUEUR_CODE - 1)]?.focus()
     e.preventDefault()
   }
 
   return (
     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-      {Array.from({ length: 6 }, (_, i) => (
-        <input
-          key={i}
-          ref={el => { inputsRef.current[i] = el }}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={value[i] || ''}
-          onChange={e => handleChange(i, e)}
-          onKeyDown={e => handleKey(i, e)}
-          onPaste={handlePaste}
-          style={{
-            width: '44px', height: '56px', borderRadius: '12px', textAlign: 'center',
-            fontSize: '22px', fontWeight: 800, color: T.primary, caretColor: T.primary,
-            border: `${value[i] ? '2px' : '1.2px'} solid ${value[i] ? T.primary : T.border}`,
-            background: value[i] ? 'rgba(15,76,92,0.06)' : T.surfaceEl,
-            outline: 'none', fontFamily: 'inherit',
-            boxShadow: value[i] ? `0 0 0 3px rgba(15,76,92,0.10)` : 'none',
-            transition: 'all 0.15s',
-          }}
-        />
-      ))}
+      {Array.from({ length: LONGUEUR_CODE }, (_, i) => {
+        const rempli = Boolean(value[i])
+        // Bordure : erreur (rouge) > rempli (primaire) > neutre.
+        const borderColor = error ? T.error : rempli ? T.primary : T.border
+        return (
+          <input
+            key={i}
+            ref={el => { inputsRef.current[i] = el }}
+            type="text"
+            inputMode="numeric"
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            maxLength={1}
+            value={value[i] || ''}
+            onChange={e => handleChange(i, e)}
+            onKeyDown={e => handleKey(i, e)}
+            onPaste={handlePaste}
+            style={{
+              width: '48px', height: '60px', borderRadius: '14px', textAlign: 'center',
+              fontSize: '26px', fontWeight: 800, color: T.textStrong, caretColor: T.primary,
+              border: `${error || rempli ? '1.6px' : '1.2px'} solid ${borderColor}`,
+              background: T.surfaceEl, outline: 'none', fontFamily: 'inherit',
+              boxShadow: rempli && !error ? '0 0 0 3px rgba(10,104,71,0.10)' : 'none',
+              transition: 'all 0.15s',
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Spinner inline (bouton chargement) ──────────────────────────────────────────
+function Spinner() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <path d="M21 12a9 9 0 11-6.219-8.56" />
+    </svg>
+  )
+}
+
+// ── Écran principal ─────────────────────────────────────────────────────────────
 export default function MobileConnexion() {
   const navigate = useNavigate()
   const login    = useAuthStore(s => s.login)
+  // Conserve le paramètre ?next= pour rediriger après connexion (équiv. context.go).
   const nextUrl  = new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
 
-  // Slider
-  const [slide, setSlide] = useState(0)
+  // Phase courante : saisie numéro (welcome) ou vérification OTP.
+  const [phase, setPhase]     = useState<'welcome' | 'otp'>('welcome')
+
+  // État champ numéro.
+  const [numero, setNumero]   = useState('')
+  const [champFocus, setChampFocus] = useState(false)  // masque le slider quand actif
+  const [envoiEnCours, setEnvoiEnCours] = useState(false)
+  // Erreur de validation / réseau affichée sous le champ numéro.
+  const [erreurChamp, setErreurChamp] = useState<string | null>(null)
+
+  // Modale « Numéro non inscrit ».
+  const [modaleNonInscrit, setModaleNonInscrit] = useState<{ phoneE164: string } | null>(null)
+
+  // État OTP.
+  const [otp, setOtp]                 = useState('')
+  const [erreurOtp, setErreurOtp]     = useState<string | null>(null)
+  const [cooldown, setCooldown]       = useState(COOLDOWN_INIT)
+  const [verifEnCours, setVerifEnCours] = useState(false)
+  const [shakeKey, setShakeKey]       = useState(0)  // relance l'animation shake du bandeau
+
+  // Décrément du cooldown chaque seconde (otp_verify_screen).
   useEffect(() => {
-    const t = setInterval(() => setSlide(s => (s + 1) % SLIDES.length), 3500)
+    if (phase !== 'otp' || cooldown <= 0) return
+    const t = setInterval(() => setCooldown(c => (c > 0 ? c - 1 : 0)), 1000)
     return () => clearInterval(t)
-  }, [])
+  }, [phase, cooldown])
 
-  // Form state
-  const [phase, setPhase]       = useState<'numero' | 'otp'>('numero')
-  const [indicatif]             = useState('+241')
-  const [numero, setNumero]     = useState('')
-  const [otp, setOtp]           = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [countdown, setCountdown] = useState(0)
-  const [error, setError]       = useState('')
-
-  // Countdown OTP
-  useEffect(() => {
-    if (countdown <= 0) return
-    const t = setInterval(() => setCountdown(c => c - 1), 1000)
-    return () => clearInterval(t)
-  }, [countdown])
-
-  const handleSendOtp = async () => {
-    if (!numero || numero.length < 6) { setError('Entrez un numéro valide.'); return }
-    setError('')
-    setLoading(true)
+  // ── Chemin Valider : envoie l'OTP et oriente selon existence du compte ─────────
+  async function valider() {
+    // Validateur ChampTelephoneGabon : 0 suivi de 8 chiffres.
+    if (!/^0\d{8}$/.test(numero.trim())) {
+      setErreurOtp(null)
+      setModaleNonInscrit(null)
+      setErreurChamp('Format : 0 suivi de 8 chiffres')
+      return
+    }
+    setErreurChamp(null)
+    setEnvoiEnCours(true)
     try {
-      const res = await requestOtp(indicatif, numero, 'login')
+      const res = await requestOtp(INDICATIF, numero.trim(), 'login')
+      setEnvoiEnCours(false)
+
       if (!res.user_exists) {
-        // Numéro non inscrit — rediriger vers l'inscription avec le numéro pré-rempli
-        navigate('/inscription', { state: { indicatif, numero } })
+        // Numéro inconnu côté backend → modale rectifier / créer (pas de SMS gaspillé).
+        setModaleNonInscrit({ phoneE164: res.phone })
         return
       }
+
+      // Numéro inscrit → écran OTP (login).
+      setOtp('')
+      setErreurOtp(null)
       setPhase('otp')
-      setCountdown(60)
+      setCooldown(COOLDOWN_INIT)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Erreur réseau, réessayez.')
-    } finally {
-      setLoading(false)
+      setEnvoiEnCours(false)
+      // TonjiToast.error → message d'erreur backend affiché sous le champ.
+      setErreurChamp(e instanceof ApiError ? e.message : 'Erreur réseau, réessayez.')
     }
   }
 
-  const handleVerify = async () => {
-    if (otp.length < 6) { setError('Entrez les 6 chiffres du code.'); return }
-    setError('')
-    setLoading(true)
+  // ── Modale B2 : « Créer un compte » → /inscription avec numéro verrouillé ──────
+  function creerDepuisModale() {
+    setModaleNonInscrit(null)
+    navigate('/inscription', { state: { indicatif: INDICATIF, numero: numero.trim() } })
+  }
+
+  // ── Chemin C : bouton « Créer un compte » (sans prefill) ──────────────────────
+  function allerVersInscription() {
+    navigate('/inscription')
+  }
+
+  // ── Vérification OTP : compare longueur, appelle verify-otp (login) ────────────
+  async function verifier(code: string) {
+    if (code.length !== LONGUEUR_CODE) {
+      setErreurOtp('Code à 6 chiffres requis')
+      setShakeKey(k => k + 1)
+      return
+    }
+    setErreurOtp(null)
+    setVerifEnCours(true)
     try {
-      const session = await verifyOtpLogin(indicatif, numero, otp)
+      const session = await verifyOtpLogin(INDICATIF, numero.trim(), code)
       login(
         {
           id: session.user.id,
@@ -140,253 +295,395 @@ export default function MobileConnexion() {
           telephone: session.user.numero,
           typeClient: session.user.type_client as 'particulier' | 'entreprise' | 'marchand',
           dateNaissance: session.user.date_naissance,
+          // Infos complémentaires propagées au store (sinon « Non renseigné » sur le profil).
+          email: session.user.email,
+          adresse: session.user.adresse,
+          sexe: session.user.sexe,
+          kycValide: session.user.kyc_valide,
         },
         session.token,
       )
       navigate(nextUrl, { replace: true })
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Code incorrect ou expiré.')
-    } finally {
-      setLoading(false)
+      setVerifEnCours(false)
+      // Message backend (422 champ 'otp') ou fallback identique au Flutter.
+      const msg = e instanceof ApiError
+        ? e.message
+        : 'Code incorrect. Veuillez vérifier le code reçu et réessayer.'
+      // Vide les cases + redonne le focus + affiche le bandeau (avec shake).
+      setOtp('')
+      setErreurOtp(msg)
+      setShakeKey(k => k + 1)
     }
   }
 
+  // ── Renvoi du code : repart sur un cooldown de 60 s ───────────────────────────
+  async function renvoyerCode() {
+    if (cooldown > 0 || verifEnCours) return
+    try {
+      await requestOtp(INDICATIF, numero.trim(), 'login')
+      setCooldown(COOLDOWN_INIT)
+    } catch {
+      setErreurOtp("Impossible d'envoyer le code. Réessayez.")
+      setShakeKey(k => k + 1)
+    }
+  }
+
+  // Retour depuis l'OTP vers le welcome (équiv. flèche AppBar).
+  function retourWelcome() {
+    setPhase('welcome')
+    setOtp('')
+    setErreurOtp(null)
+  }
+
+  // Le slider se masque dès que le champ téléphone est focus.
+  const masquerSlider = champFocus
+
   return (
-    <div style={{ minHeight: '100svh', background: T.surface, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-
-      {/* ── Cercles décoratifs ───────────────────────────────────────────────── */}
+    <div style={{
+      minHeight: '100svh', background: T.primary, display: 'flex', flexDirection: 'column',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* ── Halos décoratifs (GlowCircle, mêmes que la splash) ───────────────── */}
       <div style={{
-        position: 'absolute', width: '260px', height: '260px', borderRadius: '50%',
-        background: `rgba(201,123,74,0.22)`, filter: 'blur(60px)',
-        top: '-80px', right: '-120px', pointerEvents: 'none',
+        position: 'absolute', width: '300px', height: '300px', borderRadius: '50%',
+        background: `rgba(232,168,48,0.25)`, filter: 'blur(70px)',
+        top: '-80px', right: '-60px', pointerEvents: 'none',
       }} />
       <div style={{
-        position: 'absolute', width: '320px', height: '320px', borderRadius: '50%',
-        background: `rgba(15,76,92,0.18)`, filter: 'blur(70px)',
-        bottom: '-140px', left: '-140px', pointerEvents: 'none',
+        position: 'absolute', width: '340px', height: '340px', borderRadius: '50%',
+        background: `rgba(26,144,96,0.20)`, filter: 'blur(80px)',
+        bottom: '-100px', left: '-80px', pointerEvents: 'none',
       }} />
 
-      {/* ── Brand (haut gauche fixe) ─────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-        style={{ padding: '52px 24px 0' }}
-      >
-        <p style={{ fontSize: '40px', fontWeight: 800, color: T.textStrong, letterSpacing: '-1px', lineHeight: 1 }}>
-          Tonji
-        </p>
-        <p style={{ fontSize: '14px', color: T.textSec, marginTop: '4px' }}>
-          Tontines &amp; cotisations.
-        </p>
-      </motion.div>
-
-      {/* ── Slider (centré dans l'espace restant) ────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 28px' }}>
-
-        {/* Icône */}
-        <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait">
+        {phase === 'welcome' ? (
+          // ════════════════ WELCOME ════════════════════════════════════════════
           <motion.div
-            key={`icon-${slide}`}
-            initial={{ opacity: 0, scale: 0.75 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ duration: 0.3 }}
-            style={{ fontSize: '56px', lineHeight: 1, marginBottom: '24px', textAlign: 'center' }}
+            key="welcome"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '28px 24px 24px' }}
           >
-            {SLIDES[slide].icon}
-          </motion.div>
-        </AnimatePresence>
+            {/* ── Top : brand + tagline + slider ──────────────────────────────── */}
+            <div>
+              <motion.img
+                src="/logo-tonji-wordmark.png"
+                alt="Tonji"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.33, 1, 0.68, 1] }}
+                style={{ height: 120, width: 'auto', display: 'block', margin: 0 }}
+              />
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                style={{ marginTop: '8px', fontSize: '14px', color: 'rgba(255,255,255,0.70)', letterSpacing: '0.4px' }}
+              >
+                Cotisez simplement.
+              </motion.p>
 
-        {/* Texte */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`text-${slide}`}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.35 }}
-            style={{ textAlign: 'center' }}
-          >
-            <p style={{ fontSize: '22px', fontWeight: 800, color: T.textStrong, marginBottom: '12px', letterSpacing: '-0.3px' }}>
-              {SLIDES[slide].title}
-            </p>
-            <p style={{ fontSize: '15px', color: T.textSec, lineHeight: 1.6, maxWidth: '280px', margin: '0 auto' }}>
-              {SLIDES[slide].desc}
-            </p>
-          </motion.div>
-        </AnimatePresence>
+              {/* Slider — masqué quand le champ téléphone est focus */}
+              <AnimatePresence>
+                {!masquerSlider && (
+                  <motion.div
+                    key="slider"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.32, ease: [0.33, 1, 0.68, 1] }}
+                    style={{ overflow: 'hidden', paddingTop: '32px' }}
+                  >
+                    <WelcomeSlider />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-        {/* Dots */}
-        <div style={{ display: 'flex', gap: '7px', marginTop: '32px', justifyContent: 'center' }}>
-          {SLIDES.map((_, i) => (
-            <div key={i} style={{
-              height: '4px', borderRadius: '2px',
-              background: i === slide ? T.primary : T.border,
-              width: i === slide ? '24px' : '7px',
-              transition: 'all 0.3s ease',
-            }} />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Card basse ───────────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 32 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-        style={{
-          background: T.surfaceEl, borderRadius: '28px 28px 0 0',
-          border: `1px solid rgba(216,207,192,0.6)`, borderBottom: 'none',
-          boxShadow: '0 -8px 32px rgba(26,31,30,0.08)',
-          padding: '28px 24px 40px',
-        }}
-      >
-        <AnimatePresence mode="wait">
-          {phase === 'numero' ? (
-            <motion.div key="numero" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <p style={{ fontSize: '22px', fontWeight: 800, color: T.textStrong, marginBottom: '4px' }}>Bon retour 👋</p>
-              <p style={{ fontSize: '13px', color: T.textSec, marginBottom: '24px' }}>
-                Entrez votre numéro Mobile Money pour continuer.
+            {/* ── Bottom : carte de connexion ────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.7, ease: [0.33, 1, 0.68, 1] }}
+              style={{
+                marginTop: '32px',
+                background: T.surfaceEl, borderRadius: '28px',
+                border: `1px solid rgba(212,218,213,0.6)`,
+                boxShadow: '0 12px 32px rgba(10,104,71,0.08)',
+                padding: '28px 24px 24px',
+              }}
+            >
+              <p style={{ fontSize: '22px', fontWeight: 800, color: T.textStrong, margin: 0 }}>Bon retour</p>
+              <p style={{ marginTop: '4px', fontSize: '14px', color: T.textSec }}>
+                Entrez votre numéro pour vous connecter.
               </p>
 
-              {/* Champ numéro */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              {/* Champ « Numéro Mobile Money » (ChampTelephoneGabon) */}
+              <div style={{ marginTop: '24px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                {/* Pastille pays 🇬🇦 +241 (non éditable) */}
                 <div style={{
-                  height: '54px', padding: '0 12px', borderRadius: '16px', display: 'flex', alignItems: 'center',
-                  background: T.surface, border: `1.2px solid ${T.border}`, fontSize: '14px', fontWeight: 600, color: T.textStrong,
-                  whiteSpace: 'nowrap',
+                  height: '56px', padding: '0 12px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '6px',
+                  background: T.surfaceEl, border: `1.2px solid ${T.border}`, whiteSpace: 'nowrap',
                 }}>
-                  🇬🇦 +241
+                  <span style={{ fontSize: '22px' }}>🇬🇦</span>
+                  <span style={{ fontWeight: 700, color: T.textStrong, fontSize: '15px' }}>+241</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.textTert} strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9" /></svg>
                 </div>
-                <input
-                  type="tel"
-                  placeholder="077 00 00 00"
-                  value={numero}
-                  onChange={e => setNumero(e.target.value.replace(/\D/g, ''))}
-                  style={{
-                    flex: 1, height: '54px', borderRadius: '16px', padding: '0 16px',
-                    border: `1.2px solid ${error ? T.error : T.border}`, background: T.surface,
-                    fontSize: '16px', fontWeight: 600, color: T.textStrong, outline: 'none', fontFamily: 'inherit',
-                    letterSpacing: '0.5px',
-                  }}
-                />
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="0x xx xx xx xx"
+                    value={numero}
+                    onFocus={() => setChampFocus(true)}
+                    onBlur={() => setChampFocus(false)}
+                    onChange={e => setNumero(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                    onKeyDown={e => { if (e.key === 'Enter' && !envoiEnCours) valider() }}
+                    style={{
+                      width: '100%', height: '56px', borderRadius: '16px', padding: '0 16px', boxSizing: 'border-box',
+                      border: `1.2px solid ${erreurChamp ? T.error : T.border}`, background: T.surfaceEl,
+                      fontSize: '16px', fontWeight: 600, color: T.textStrong, outline: 'none', fontFamily: 'inherit',
+                      letterSpacing: '0.5px',
+                    }}
+                  />
+                  {erreurChamp && (
+                    <p style={{ marginTop: '6px', fontSize: '12px', color: T.error, fontWeight: 600 }}>{erreurChamp}</p>
+                  )}
+                </div>
               </div>
 
-              {error && (
-                <p style={{ fontSize: '12px', color: T.error, marginBottom: '12px', fontWeight: 600 }}>{error}</p>
-              )}
-
+              {/* Bouton principal « Valider » */}
               <button
-                onClick={handleSendOtp}
-                disabled={loading}
+                onClick={valider}
+                disabled={envoiEnCours}
                 style={{
-                  width: '100%', height: '56px', borderRadius: '16px', border: 'none', cursor: 'pointer',
+                  width: '100%', height: '56px', marginTop: '20px', borderRadius: '16px', border: 'none',
+                  cursor: envoiEnCours ? 'default' : 'pointer',
                   background: T.primary, color: T.surface, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  opacity: loading ? 0.7 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: envoiEnCours ? 0.7 : 1,
                 }}
               >
-                {loading ? <Spinner /> : <>Recevoir le code par SMS</>}
+                {envoiEnCours ? <Spinner /> : 'Valider'}
               </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0' }}>
+              {/* Séparateur OU */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', margin: '24px 0 20px' }}>
                 <div style={{ flex: 1, height: '1px', background: T.border }} />
                 <span style={{ fontSize: '12px', color: T.textTert, fontWeight: 600, letterSpacing: '1.5px' }}>OU</span>
                 <div style={{ flex: 1, height: '1px', background: T.border }} />
               </div>
 
-              <Link to="/inscription" style={{ textDecoration: 'none' }}>
-                <button style={{
-                  width: '100%', height: '52px', borderRadius: '16px', cursor: 'pointer',
+              {/* Bouton secondaire « Créer un compte » (person_add) */}
+              <button
+                onClick={allerVersInscription}
+                disabled={envoiEnCours}
+                style={{
+                  width: '100%', height: '52px', borderRadius: '16px',
+                  cursor: envoiEnCours ? 'default' : 'pointer',
                   background: 'transparent', border: `1.5px solid ${T.primary}`, color: T.primary,
                   fontSize: '15px', fontWeight: 700, fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                }}>
-                  ✦ Créer un compte
-                </button>
-              </Link>
+                  opacity: envoiEnCours ? 0.6 : 1,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
+                </svg>
+                Créer un compte
+              </button>
             </motion.div>
+          </motion.div>
 
-          ) : (
-            <motion.div key="otp" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                <button
-                  onClick={() => { setPhase('numero'); setOtp(''); setError('') }}
-                  style={{ background: T.surfaceDeep, border: 'none', borderRadius: '12px', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.textStrong} strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                <div>
-                  <p style={{ fontSize: '19px', fontWeight: 800, color: T.textStrong }}>Entrez le code reçu</p>
-                  <p style={{ fontSize: '12px', color: T.textSec }}>Envoyé au {indicatif}{numero}</p>
-                </div>
-              </div>
+        ) : (
+          // ════════════════ OTP (otp_verify_screen) ════════════════════════════
+          <motion.div
+            key="otp"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', background: T.surface }}
+          >
+            {/* AppBar « Vérification » + flèche retour — fond crème (miroir otp_verify_screen) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '20px 12px 0' }}>
+              <button
+                onClick={retourWelcome}
+                style={{ background: 'transparent', border: 'none', borderRadius: '12px', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.textStrong} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+              <p style={{ fontSize: '18px', fontWeight: 700, color: T.textStrong, margin: 0 }}>Vérification</p>
+            </div>
 
-              {/* Icon */}
+            <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column' }}>
+              {/* Icône SMS dans un cercle vert clair */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}  // easeOutBack
+                style={{
+                  width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(10,104,71,0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '8px',
+                }}
+              >
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+              </motion.div>
+
+              <motion.p
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.5, ease: [0.33, 1, 0.68, 1] }}
+                style={{ fontSize: '22px', fontWeight: 800, color: T.textStrong, marginTop: '20px', marginBottom: 0 }}
+              >
+                Entrez le code reçu
+              </motion.p>
+
+              {/* « Code à 6 chiffres envoyé au +241 numéro. » */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                style={{ marginTop: '4px', fontSize: '14px', color: T.textSec }}
+              >
+                Code à 6 chiffres envoyé au{' '}
+                <strong style={{ color: T.textStrong, fontWeight: 700 }}>{INDICATIF} {numero}</strong>.
+              </motion.p>
+
+              <div style={{ height: '36px' }} />
+
+              {/* 6 cases OTP */}
+              <OtpInput value={otp} onChange={v => { if (erreurOtp) setErreurOtp(null); setOtp(v) }} error={erreurOtp !== null} />
+
+              {/* Bandeau d'erreur (shake + fadeIn) */}
+              <AnimatePresence>
+                {erreurOtp && (
+                  <motion.div
+                    key={shakeKey}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, x: [0, -6, 6, -4, 4, 0] }}
+                    exit={{ opacity: 0 }}
+                    transition={{ opacity: { duration: 0.2 }, x: { duration: 0.4 } }}
+                    style={{
+                      width: '100%', marginTop: '12px', padding: '12px 14px', borderRadius: '12px', boxSizing: 'border-box',
+                      background: 'rgba(217,79,61,0.12)', border: '1px solid rgba(217,79,61,0.45)',
+                      fontSize: '14px', color: T.error, fontWeight: 600, textAlign: 'center',
+                    }}
+                  >
+                    {erreurOtp}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div style={{ height: '28px' }} />
+
+              {/* Bouton « Vérifier » */}
+              <button
+                onClick={() => verifier(otp)}
+                disabled={verifEnCours}
+                style={{
+                  width: '100%', height: '56px', borderRadius: '16px', border: 'none',
+                  cursor: verifEnCours ? 'default' : 'pointer',
+                  background: T.primary, color: T.surface, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: verifEnCours ? 0.7 : 1,
+                }}
+              >
+                {verifEnCours ? <Spinner /> : 'Vérifier'}
+              </button>
+
+              {/* « Renvoyer dans Xs » / « Renvoyer le code » */}
+              <button
+                onClick={renvoyerCode}
+                disabled={verifEnCours || cooldown > 0}
+                style={{
+                  width: '100%', marginTop: '8px', height: '44px', background: 'none', border: 'none',
+                  cursor: (verifEnCours || cooldown > 0) ? 'default' : 'pointer',
+                  fontSize: '14px', color: cooldown > 0 ? T.textTert : T.primary,
+                  fontWeight: 600, fontFamily: 'inherit',
+                }}
+              >
+                {cooldown > 0 ? `Renvoyer dans ${cooldown} s` : 'Renvoyer le code'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modale « Numéro non inscrit » ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {modaleNonInscrit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(20,32,46,0.55)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+            }}
+            onClick={() => setModaleNonInscrit(null)}  // tap hors carte = Rectifier (ferme)
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: '360px', background: T.surfaceEl, borderRadius: '22px',
+                border: `1px solid rgba(212,218,213,0.6)`, padding: '24px 20px 16px',
+                boxShadow: '0 20px 48px rgba(20,32,46,0.25)',
+              }}
+            >
+              {/* Icône phone_disabled dans un cercle accent translucide */}
               <div style={{
-                width: '64px', height: '64px', borderRadius: '20px', background: `rgba(15,76,92,0.08)`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+                width: '52px', height: '52px', borderRadius: '50%', background: 'rgba(232,168,48,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto',
               }}>
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
                 </svg>
               </div>
 
-              {/* 6 cases */}
-              <OtpInput value={otp} onChange={setOtp} />
+              <p style={{ marginTop: '16px', fontSize: '18px', fontWeight: 700, color: T.textStrong, textAlign: 'center' }}>
+                Numéro non inscrit
+              </p>
 
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.97 }}
-                  animate={{ opacity: 1, scale: 1 }}
+              <p style={{ marginTop: '8px', fontSize: '14px', color: T.textSec, textAlign: 'center', lineHeight: 1.5 }}>
+                Le numéro{' '}
+                <strong style={{ fontWeight: 700, color: T.textStrong }}>{modaleNonInscrit.phoneE164}</strong>
+                {" n'a pas encore de compte Tonji. Souhaitez-vous le rectifier ou créer un compte ?"}
+              </p>
+
+              {/* Actions : Rectifier (ferme) — Créer un compte (→ inscription verrouillée) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '20px', padding: '0 0 0' }}>
+                <button
+                  onClick={() => setModaleNonInscrit(null)}
                   style={{
-                    margin: '16px 0 0', padding: '10px 14px', borderRadius: '12px',
-                    background: `rgba(160,68,52,0.10)`, border: `1px solid rgba(160,68,52,0.30)`,
-                    fontSize: '13px', color: T.error, fontWeight: 600, textAlign: 'center',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: T.primary, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', padding: '10px 12px',
                   }}
                 >
-                  {error}
-                </motion.div>
-              )}
-
-              <button
-                onClick={handleVerify}
-                disabled={loading || otp.length < 6}
-                style={{
-                  width: '100%', height: '56px', borderRadius: '16px', border: 'none', cursor: 'pointer',
-                  background: T.primary, color: T.surface, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  marginTop: '24px', opacity: (loading || otp.length < 6) ? 0.6 : 1,
-                  transition: 'opacity 0.15s',
-                }}
-              >
-                {loading ? <Spinner /> : 'Vérifier'}
-              </button>
-
-              <button
-                onClick={() => { if (countdown === 0) { setOtp(''); handleSendOtp() } }}
-                disabled={countdown > 0}
-                style={{
-                  width: '100%', marginTop: '14px', background: 'none', border: 'none', cursor: countdown > 0 ? 'default' : 'pointer',
-                  fontSize: '13px', color: countdown > 0 ? T.textTert : T.primary, fontWeight: 600, fontFamily: 'inherit', padding: '8px',
-                }}
-              >
-                {countdown > 0 ? `Renvoyer dans ${countdown}s` : 'Renvoyer le code'}
-              </button>
+                  Rectifier
+                </button>
+                <button
+                  onClick={creerDepuisModale}
+                  style={{
+                    background: T.primary, border: 'none', borderRadius: '14px', cursor: 'pointer',
+                    color: T.surface, fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', padding: '12px 18px',
+                  }}
+                >
+                  Créer un compte
+                </button>
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
-  )
-}
-
-function Spinner() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" opacity="0.4"/>
-      <path d="M12 2v4" opacity="1"/>
-    </svg>
   )
 }

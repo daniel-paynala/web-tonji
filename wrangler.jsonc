@@ -1,0 +1,11 @@
+{
+  // Worker "assets-only" qui sert la SPA React (build Vite) de la version web mobile Tonji.
+  "name": "tonji-web-mobile",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    // Dossier de build Vite
+    "directory": "./dist",
+    // Routage SPA : toute route inconnue renvoie index.html (react-router gère ensuite)
+    "not_found_handling": "single-page-application"
+  }
+}

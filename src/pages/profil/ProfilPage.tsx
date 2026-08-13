@@ -10,6 +10,9 @@ import Card from '@/components/ui/Card'
 import { useAuthStore } from '@/store/authStore'
 import { useMobile } from '@/hooks/useMobile'
 import MobileProfil from '@/pages/mobile/MobileProfil'
+import { updateProfil, authUserToStoreUser } from '@/lib/profilApi'
+import { logout as apiLogout } from '@/lib/authApi'
+import { ApiError } from '@/lib/api'
 
 // ─── Icônes ───────────────────────────────────────────────────────────────────
 
@@ -124,19 +127,41 @@ function ModalCompletion({ champ, onSave, onClose }: {
 export default function ProfilPage() {
   const isMobile = useMobile()
   const user = useAuthStore((s) => s.user)
+  const token = useAuthStore((s) => s.token)
+  const login = useAuthStore((s) => s.login)
+  const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
 
-  const [optionnels, setOptionnels] = useState<ProfilOptionnels>({})
+  // Champs optionnels initialisés depuis le VRAI profil (store), pas vides.
+  const [optionnels, setOptionnels] = useState<ProfilOptionnels>({
+    sexe: user?.sexe, adresse: user?.adresse, email: user?.email,
+  })
   const [modalChamp, setModalChamp] = useState<'email' | 'adresse' | 'sexe' | null>(null)
   const [saved, setSaved]           = useState<string | null>(null)
+  const [saveError, setSaveError]   = useState<string | null>(null)
 
   const champsFilled  = [optionnels.sexe, optionnels.adresse, optionnels.email].filter(Boolean).length
   const completionPct = Math.round((champsFilled / 3) * 100)
 
-  const saveChamp = (champ: 'email' | 'adresse' | 'sexe', val: string) => {
-    setOptionnels((prev) => ({ ...prev, [champ]: val }))
-    setSaved(champ)
-    setTimeout(() => setSaved(null), 2500)
+  // Sauvegarde RÉELLE : PATCH /profil (updateProfil) + mise à jour du store.
+  const saveChamp = async (champ: 'email' | 'adresse' | 'sexe', val: string) => {
+    setSaveError(null)
+    try {
+      const updated = await updateProfil({ [champ]: val })
+      if (token) login(authUserToStoreUser(updated), token)
+      setOptionnels((prev) => ({ ...prev, [champ]: val }))
+      setSaved(champ)
+      setTimeout(() => setSaved(null), 2500)
+    } catch (e) {
+      setSaveError(e instanceof ApiError ? e.message : "Échec de l'enregistrement. Réessayez.")
+    }
+  }
+
+  // Déconnexion RÉELLE : logout API (best-effort) + purge store + retour connexion.
+  const handleLogout = async () => {
+    try { await apiLogout() } catch { /* best-effort */ }
+    logout()
+    navigate('/connexion', { replace: true })
   }
 
   const initiales = user ? `${user.prenom.charAt(0)}${user.nom.charAt(0)}`.toUpperCase() : 'U'
@@ -152,6 +177,12 @@ export default function ProfilPage() {
         </button>
       </div>
       <h1 className="font-display font-bold text-text-strong text-2xl tracking-tight">Mon profil</h1>
+
+      {saveError && (
+        <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(217,79,61,0.10)', border: '1px solid rgba(217,79,61,0.30)' }}>
+          <p className="text-sm font-medium" style={{ color: '#D94F3D' }}>{saveError}</p>
+        </div>
+      )}
 
       {/* Avatar + complétion */}
       <Card elevated>
@@ -189,7 +220,7 @@ export default function ProfilPage() {
           {[
             { label: 'Nom',               value: user?.nom },
             { label: 'Prénom',            value: user?.prenom },
-            { label: 'Date de naissance', value: '—' },
+            { label: 'Date de naissance', value: user?.dateNaissance ?? '—' },
             { label: 'Téléphone',         value: user?.telephone, locked: true },
           ].map((item) => (
             <div key={item.label} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
@@ -262,10 +293,15 @@ export default function ProfilPage() {
           <span className="font-semibold text-text-strong text-sm">{user?.telephone}</span>
           <div className="ml-auto flex items-center gap-1.5 text-xs text-text-tertiary">
             <IconLock />
-            <span>Utilisé par une cagnotte active</span>
+            <span>Votre numéro Mobile Money</span>
           </div>
         </div>
       </Card>
+
+      {/* Déconnexion */}
+      <Button variant="outline" size="lg" className="w-full" onClick={handleLogout}>
+        Se déconnecter
+      </Button>
 
       {/* Modale */}
       <AnimatePresence>

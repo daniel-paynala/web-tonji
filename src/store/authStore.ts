@@ -8,6 +8,15 @@ interface User {
   telephone: string
   typeClient: 'particulier' | 'entreprise' | 'marchand'
   dateNaissance?: string   // absent ou null → compte light (invité sans DDN)
+  // Statut KYC opérateur (numéro = compte Mobile Money actif ?).
+  // Persisté ici pour éviter un GET /auth/me au montage du profil.
+  kycValide?: boolean
+  // Infos complémentaires, demandées après le sign-up (cf. profil progressif).
+  // Renvoyées par le backend (serializeUser) mais absentes tant que l'user
+  // ne les a pas renseignées → restent undefined et s'affichent « Non renseigné ».
+  email?: string
+  adresse?: string
+  sexe?: string
 }
 
 export function estCompteLight(user: User | null): boolean {

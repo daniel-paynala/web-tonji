@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.paynala.tonji",
+      "sha256_cert_fingerprints": [
+        "BA:DF:B9:8D:9B:2F:C9:FF:4A:8E:62:A4:3C:AE:70:11:2D:EB:48:1E:47:CD:A4:74:15:DD:B0:74:8B:4B:A2:71"
+      ]
+    }
+  }
+]
