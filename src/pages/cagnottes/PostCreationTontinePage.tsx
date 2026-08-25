@@ -241,7 +241,7 @@ export default function PostCreationTontinePage() {
               transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
             >
               <div className="flex items-center justify-between mb-5">
-                <p className="text-[17px] font-bold" style={{ color: T.textStrong }}>Inviter via…</p>
+                <p className="text-[17px] font-bold" style={{ color: T.textStrong }}>Inviter à cotiser via…</p>
                 <button onClick={() => setModaleOuverte(false)} className="p-1 flex" style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textTert }}>
                   <IconCloseModal />
                 </button>

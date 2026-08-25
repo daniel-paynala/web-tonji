@@ -421,7 +421,7 @@ export default function MobilePostCreationTontine() {
             <div style={{ width: 36, height: 4, borderRadius: 2, background: T.border, margin: '0 auto 20px' }} />
 
             <p style={{ fontWeight: 700, fontSize: 17, color: T.textStrong, textAlign: 'center', marginBottom: 20 }}>
-              Inviter via…
+              Inviter à cotiser via…
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
