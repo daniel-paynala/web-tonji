@@ -14,7 +14,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { requestOtp, verifyOtpLogin, verifyOtpSignup } from '@/lib/authApi'
-import { chargerInfoCagnottePublique, rejoindre } from '@/lib/cagnottesApi'
+import { chargerInfoCagnottePublique } from '@/lib/cagnottesApi'
 import type { InfoCagnottePublique } from '@/lib/cagnottesApi'
 import { useAuthStore } from '@/store/authStore'
 import { useDeepLink } from '@/hooks/useDeepLink'
@@ -197,6 +197,15 @@ export default function InvitationPage() {
 
   const [enCours, setEnCours]     = useState(false)
 
+  // Va DIRECTEMENT à l'écran de cotisation (objectif du QR — pas d'étape "rejoindre").
+  // `replace` : la page /rejoindre ne reste pas dans l'historique.
+  const allerCotiser = () => {
+    navigate(`/cagnottes/${ref}/cotiser`, {
+      state: { titre: info?.titre ?? 'Cagnotte', type: info?.type ?? 'cotisation' },
+      replace: true,
+    })
+  }
+
   // ── Chargement cagnotte ────────────────────────────────────────────────────
   useEffect(() => {
     if (!ref) { setEtape('erreur_cagnotte'); return }
@@ -207,24 +216,12 @@ export default function InvitationPage() {
     })
   }, [ref, isAuthenticated])
 
-  // Si l'utilisateur est déjà connecté, rejoindre directement
+  // Déjà connecté : on va directement à la cotisation (pas d'étape "rejoindre").
   useEffect(() => {
     if (etape !== 'en_cours' || !isAuthenticated) return
-    setEnCours(true)
-    rejoindre(ref)
-      .then(() => setEtape('succes'))
-      .catch(e => {
-        const msg = e instanceof Error ? e.message : 'Erreur lors de la connexion'
-        // 409 = déjà membre → on considère ça comme un succès
-        if (msg.includes('409') || msg.toLowerCase().includes('déjà')) {
-          setEtape('succes')
-        } else {
-          setErreur(msg)
-          setEtape('telephone')
-        }
-      })
-      .finally(() => setEnCours(false))
-  }, [etape, isAuthenticated, ref])
+    allerCotiser()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etape, isAuthenticated])
 
   // ── Timer OTP ──────────────────────────────────────────────────────────────
   const lancerTimer = () => {
@@ -293,9 +290,8 @@ export default function InvitationPage() {
         { id: session.user.id, nom: session.user.nom, prenom: session.user.prenom, telephone: session.user.numero, typeClient: session.user.type_client as 'particulier', dateNaissance: session.user.date_naissance },
         session.token,
       )
-      // Rejoindre après auth
-      await rejoindre(ref)
-      setEtape('succes')
+      // Connecté → directement à la cotisation.
+      allerCotiser()
     } catch (e: unknown) {
       setErrOtp(e instanceof Error ? e.message : 'Code invalide')
     } finally {
@@ -321,8 +317,8 @@ export default function InvitationPage() {
         { id: session.user.id, nom: session.user.nom, prenom: session.user.prenom, telephone: session.user.numero, typeClient: session.user.type_client as 'particulier', dateNaissance: session.user.date_naissance },
         session.token,
       )
-      await rejoindre(ref)
-      setEtape('succes')
+      // Compte créé → directement à la cotisation.
+      allerCotiser()
     } catch (e: unknown) {
       setErreur(e instanceof Error ? e.message : 'Erreur lors de la création du compte')
     } finally {
