@@ -134,7 +134,7 @@ function Btn({ children, onClick, disabled, loading }: {
 
 // ── Carte cagnotte ────────────────────────────────────────────────────────────
 
-function CarteCagnotte({ info, ref: refNum }: { info: InfoCagnottePublique | null; ref: string }) {
+function CarteCagnotte({ info, reference: refNum }: { info: InfoCagnottePublique | null; reference: string }) {
   const isTontine = info?.type === 'tontine'
   return (
     <div style={{
@@ -378,7 +378,7 @@ export default function InvitationPage() {
           {/* ── Téléphone ─────────────────────────────────────────────────── */}
           {(etape === 'telephone') && (
             <motion.div key="tel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}>
-              <CarteCagnotte info={info} ref={ref} />
+              <CarteCagnotte info={info} reference={ref} />
 
               <p style={{ fontSize: '22px', fontWeight: 800, color: P.textStrong, marginBottom: '6px' }}>
                 Rejoindre cette cagnotte
@@ -421,7 +421,7 @@ export default function InvitationPage() {
           {/* ── OTP ───────────────────────────────────────────────────────── */}
           {etape === 'otp' && (
             <motion.div key="otp" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}>
-              <CarteCagnotte info={info} ref={ref} />
+              <CarteCagnotte info={info} reference={ref} />
 
               <p style={{ fontSize: '22px', fontWeight: 800, color: P.textStrong, marginBottom: '6px' }}>
                 Vérification
@@ -476,7 +476,7 @@ export default function InvitationPage() {
           {/* ── Infos nouveau compte ──────────────────────────────────────── */}
           {etape === 'infos_nouveau' && (
             <motion.div key="infos" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}>
-              <CarteCagnotte info={info} ref={ref} />
+              <CarteCagnotte info={info} reference={ref} />
 
               <p style={{ fontSize: '22px', fontWeight: 800, color: P.textStrong, marginBottom: '6px' }}>
                 Créer votre compte
@@ -541,7 +541,7 @@ export default function InvitationPage() {
                 )}
               </div>
 
-              <CarteCagnotte info={info} ref={ref} />
+              <CarteCagnotte info={info} reference={ref} />
 
               <Btn onClick={() => navigate(`/cagnottes/${ref}`)}>
                 Voir la cagnotte
