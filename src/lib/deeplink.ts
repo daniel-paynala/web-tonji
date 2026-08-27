@@ -53,11 +53,16 @@ export function deepLinkRejoindre(token: string): string {
   return `${DEEPLINK.appScheme}://rejoindre/${token}`
 }
 
-/** URL WhatsApp bot avec le token pré-rempli. */
+/**
+ * URL WhatsApp bot avec le message pré-rempli au format `TONJI <ref>`.
+ * Ce format est OBLIGATOIRE : le bot déclenche le flux « rejoindre direct » via
+ * `preg_match('/^TONJI\s+(\d{4,6})$/i')` (BotService.php). Un message contenant
+ * seulement la référence n'est PAS reconnu. Miroir de `lienWhatsAppCagnotte` (mobile).
+ */
 export function waRejoindre(token: string): string {
   if (!DEEPLINK.waNumber) return ''
   const numero = DEEPLINK.waNumber.replace(/^\+/, '')
-  return `https://wa.me/${numero}?text=${encodeURIComponent(token)}`
+  return `https://wa.me/${numero}?text=${encodeURIComponent(`TONJI ${token}`)}`
 }
 
 /** URL universal link pour vérifier un reçu. */
