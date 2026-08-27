@@ -14,7 +14,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { requestOtp, verifyOtpLogin, verifyOtpSignup } from '@/lib/authApi'
-import { chargerInfoCagnottePublique } from '@/lib/cagnottesApi'
+import { chargerInfoCagnottePublique, rejoindre } from '@/lib/cagnottesApi'
 import type { InfoCagnottePublique } from '@/lib/cagnottesApi'
 import { useAuthStore } from '@/store/authStore'
 import { useDeepLink } from '@/hooks/useDeepLink'
@@ -197,9 +197,16 @@ export default function InvitationPage() {
 
   const [enCours, setEnCours]     = useState(false)
 
-  // Va DIRECTEMENT à l'écran de cotisation (objectif du QR — pas d'étape "rejoindre").
+  // Rejoint la cagnotte EN SILENCE (indispensable pour accéder à une cagnotte
+  // privée : c'est ce qui donne l'accès), PUIS va directement à la cotisation.
+  // L'utilisateur ne voit aucune étape "rejoindre" — il arrive sur la cotisation.
   // `replace` : la page /rejoindre ne reste pas dans l'historique.
-  const allerCotiser = () => {
+  const rejoindreEtCotiser = async () => {
+    try {
+      await rejoindre(ref)
+    } catch {
+      // 409 (déjà membre) ou autre : on tente quand même la cotisation.
+    }
     navigate(`/cagnottes/${ref}/cotiser`, {
       state: { titre: info?.titre ?? 'Cagnotte', type: info?.type ?? 'cotisation' },
       replace: true,
@@ -219,7 +226,7 @@ export default function InvitationPage() {
   // Déjà connecté : on va directement à la cotisation (pas d'étape "rejoindre").
   useEffect(() => {
     if (etape !== 'en_cours' || !isAuthenticated) return
-    allerCotiser()
+    void rejoindreEtCotiser()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etape, isAuthenticated])
 
@@ -290,8 +297,8 @@ export default function InvitationPage() {
         { id: session.user.id, nom: session.user.nom, prenom: session.user.prenom, telephone: session.user.numero, typeClient: session.user.type_client as 'particulier', dateNaissance: session.user.date_naissance },
         session.token,
       )
-      // Connecté → directement à la cotisation.
-      allerCotiser()
+      // Connecté → cotisation directe (join silencieux inclus).
+      await rejoindreEtCotiser()
     } catch (e: unknown) {
       setErrOtp(e instanceof Error ? e.message : 'Code invalide')
     } finally {
@@ -317,8 +324,8 @@ export default function InvitationPage() {
         { id: session.user.id, nom: session.user.nom, prenom: session.user.prenom, telephone: session.user.numero, typeClient: session.user.type_client as 'particulier', dateNaissance: session.user.date_naissance },
         session.token,
       )
-      // Compte créé → directement à la cotisation.
-      allerCotiser()
+      // Compte créé → cotisation directe (join silencieux inclus).
+      await rejoindreEtCotiser()
     } catch (e: unknown) {
       setErreur(e instanceof Error ? e.message : 'Erreur lors de la création du compte')
     } finally {
