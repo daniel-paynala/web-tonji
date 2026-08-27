@@ -68,96 +68,85 @@ export interface AfficheCagnotte {
 export async function telechargerAffichePdf({ titre, reference }: AfficheCagnotte): Promise<void> {
   const url = urlRejoindre(reference)
 
-  // QR sombre sur blanc → lecture fiable. 600px suffit largement pour 88 mm à l'impression.
+  // QR sombre sur blanc, grande résolution (affiche imprimée en grand format).
   const qrDataUrl = await QRCode.toDataURL(url, {
-    width: 600,
+    width: 900,
     margin: 1,
     errorCorrectionLevel: 'M',
     color: { dark: '#14202E', light: '#FFFFFF' },
   })
 
-  // Logo (wordmark détouré, large) — best-effort : si l'asset manque, on continue sans.
+  // Logo clair (foreground de l'icône) — pensé pour ressortir sur fond vert.
   let logo: { dataUrl: string; ratio: number } | null = null
   try {
-    logo = await chargerImage('/logo-tonji-wordmark-trim.png')
+    logo = await chargerImage('/logo-tonji-fg.png')
   } catch {
     logo = null
   }
 
-  // compress:true → flux compressés (FlateDecode) : PDF léger (< 1 Mo) au lieu de plusieurs Mo.
+  // compress:true → flux compressés (FlateDecode) : PDF léger.
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
   const W = 210 // largeur A4
   const H = 297 // hauteur A4
-  const M = 16 // marge latérale
+  const M = 14 // marge latérale
 
-  // Fond crème pleine page.
+  // Fond crème pleine page + ruban vert en haut.
   doc.setFillColor(...rgb(COL.surface))
   doc.rect(0, 0, W, H, 'F')
-
-  // Ruban vert en haut (touche de marque).
   doc.setFillColor(...rgb(COL.primary))
   doc.rect(0, 0, W, 8, 'F')
 
-  // Logo en haut à gauche (hauteur fixe, largeur selon le ratio du wordmark détouré).
+  // Logo dans un CERCLE VERT (haut à gauche) — la couleur de marque ressort.
+  const cd = 26 // diamètre du cercle
+  const ccx = M + cd / 2
+  const ccy = 20 + cd / 2
+  doc.setFillColor(...rgb(COL.primary))
+  doc.circle(ccx, ccy, cd / 2, 'F')
   if (logo) {
-    const logoH = 12
-    const logoW = logoH * logo.ratio
-    doc.addImage(logo.dataUrl, 'PNG', M, 18, logoW, logoH)
+    const s = cd * 0.9 // le fg (déjà "paddé") occupe 90 % du cercle
+    doc.addImage(logo.dataUrl, 'PNG', ccx - s / 2, ccy - s / 2, s, s)
   }
 
   // Sous-titre d'incitation.
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.setTextColor(...rgb(COL.accent))
-  doc.text('SCANNEZ POUR PARTICIPER', W / 2, 50, { align: 'center' })
+  doc.text('SCANNEZ POUR PARTICIPER', W / 2, 56, { align: 'center' })
 
   // Nom de la cagnotte (grand, centré, retour à la ligne si trop long).
   doc.setFontSize(26)
   doc.setTextColor(...rgb(COL.ink))
   const lignes = doc.splitTextToSize(titre || 'Cagnotte', W - 2 * M) as string[]
-  const titreY = 64
+  const titreY = 70
   doc.text(lignes, W / 2, titreY, { align: 'center' })
   const titreH = lignes.length * 10
 
-  // Carte blanche autour du QR.
-  const cardSize = 112
+  // Grande carte blanche + QR AU MAXIMUM.
+  const cardSize = 160
   const cardX = (W - cardSize) / 2
-  const cardTop = titreY + titreH + 6
+  const cardTop = titreY + titreH + 4
   doc.setFillColor(...rgb(COL.white))
   doc.setDrawColor(...rgb(COL.border))
   doc.setLineWidth(0.6)
-  doc.roundedRect(cardX, cardTop, cardSize, cardSize, 8, 8, 'FD')
-
-  // QR au centre de la carte.
-  const qrSize = 88
+  doc.roundedRect(cardX, cardTop, cardSize, cardSize, 10, 10, 'FD')
+  const qrSize = 144
   const qrX = (W - qrSize) / 2
   const qrY = cardTop + (cardSize - qrSize) / 2
   doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize)
 
   // Numéro de la cagnotte en bas (pastille verte).
-  const pillW = 96
-  const pillH = 21
+  const pillW = 100
+  const pillH = 22
   const pillX = (W - pillW) / 2
-  const pillY = cardTop + cardSize + 16
+  const pillY = cardTop + cardSize + 14
   doc.setFillColor(...rgb(COL.primary))
-  doc.roundedRect(pillX, pillY, pillW, pillH, 10.5, 10.5, 'F')
+  doc.roundedRect(pillX, pillY, pillW, pillH, 11, 11, 'F')
   doc.setTextColor(...rgb(COL.white))
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.text('NUMÉRO DE LA CAGNOTTE', W / 2, pillY + 7.5, { align: 'center' })
-  doc.setFontSize(19)
-  doc.text(reference, W / 2, pillY + 16, { align: 'center' })
-
-  // URL lisible sous la pastille.
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...rgb(COL.textSec))
-  doc.text(url.replace(/^https?:\/\//, ''), W / 2, pillY + pillH + 9, { align: 'center' })
-
-  // Pied de page.
-  doc.setFontSize(9)
-  doc.setTextColor(...rgb(COL.textSec))
-  doc.text('Une solution de Paynala', W / 2, H - 12, { align: 'center' })
+  doc.text('NUMÉRO DE LA CAGNOTTE', W / 2, pillY + 8, { align: 'center' })
+  doc.setFontSize(20)
+  doc.text(reference, W / 2, pillY + 17, { align: 'center' })
 
   doc.save(`affiche-tonji-${reference}.pdf`)
 }
