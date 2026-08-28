@@ -107,29 +107,35 @@ export async function telechargerAffichePdf({ titre, reference }: AfficheCagnott
     doc.addImage(logo.dataUrl, 'PNG', ccx - s / 2, ccy - s / 2, s, s)
   }
 
+  // Tagline — fait partie intégrante du logo (juste sous le cercle).
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(...rgb(COL.primary))
+  doc.text('Cotisez simplement.', M, ccy + cd / 2 + 5)
+
   // Sous-titre d'incitation.
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.setTextColor(...rgb(COL.accent))
-  doc.text('SCANNEZ POUR PARTICIPER', W / 2, 56, { align: 'center' })
+  doc.text('SCANNEZ POUR PARTICIPER', W / 2, 62, { align: 'center' })
 
   // Nom de la cagnotte (grand, centré, retour à la ligne si trop long).
   doc.setFontSize(26)
   doc.setTextColor(...rgb(COL.ink))
   const lignes = doc.splitTextToSize(titre || 'Cagnotte', W - 2 * M) as string[]
-  const titreY = 70
+  const titreY = 76
   doc.text(lignes, W / 2, titreY, { align: 'center' })
   const titreH = lignes.length * 10
 
   // Grande carte blanche + QR AU MAXIMUM.
-  const cardSize = 160
+  const cardSize = 150
   const cardX = (W - cardSize) / 2
   const cardTop = titreY + titreH + 4
   doc.setFillColor(...rgb(COL.white))
   doc.setDrawColor(...rgb(COL.border))
   doc.setLineWidth(0.6)
   doc.roundedRect(cardX, cardTop, cardSize, cardSize, 10, 10, 'FD')
-  const qrSize = 144
+  const qrSize = 138
   const qrX = (W - qrSize) / 2
   const qrY = cardTop + (cardSize - qrSize) / 2
   doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize)
