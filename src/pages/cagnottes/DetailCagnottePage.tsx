@@ -104,13 +104,13 @@ export default function DetailCagnottePage() {
     try { await navigator.clipboard.writeText(urlRejoindre(c.id)); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* ignore */ }
   }
 
-  // Génère l'affiche PDF (QR de participation) et la télécharge. c.id = référence 6 chiffres.
-  // Import dynamique : la lib PDF (lourde) n'est chargée qu'au moment du clic.
+  // Génère l'affiche IMAGE (PNG, QR de participation) et la télécharge. c.id = référence 6 chiffres.
+  // Import dynamique : le module de rendu n'est chargé qu'au moment du clic.
   const telechargerAffiche = async () => {
     setAfficheBusy(true)
     try {
-      const { telechargerAffichePdf } = await import('@/lib/afficheCagnotte')
-      await telechargerAffichePdf({ titre: c.titre, reference: c.id })
+      const { telechargerAfficheImage } = await import('@/lib/afficheCagnotte')
+      await telechargerAfficheImage({ titre: c.titre, reference: c.id })
     } catch { /* ignore */ }
     finally { setAfficheBusy(false) }
   }
@@ -210,7 +210,7 @@ export default function DetailCagnottePage() {
           {copied ? <IconCheck /> : <IconCopy />} {copied ? 'Lien copié' : "Copier le lien d'invitation"}
         </Button>
         <Button variant="outline" size="sm" onClick={telechargerAffiche} loading={afficheBusy}>
-          <IconDownload /> Affiche QR (PDF)
+          <IconDownload /> Affiche QR (Image)
         </Button>
         {isGerant && (
           <>
