@@ -14,6 +14,9 @@ export interface AuthUser {
   prenom: string
   numero: string        // E.164 (+241XXXXXXXX)
   type_client: string
+  // Type de compte : 'particulier' | 'association' (null tant que pas choisi).
+  // Seules les associations peuvent créer une cagnotte publique (crowdfunding).
+  type_compte?: string | null
   kyc_valide: boolean
   date_naissance?: string
   email?: string

@@ -7,6 +7,9 @@ interface User {
   prenom: string
   telephone: string
   typeClient: 'particulier' | 'entreprise' | 'marchand'
+  // Type de compte (particulier / association). Seules les associations peuvent
+  // créer une cagnotte publique modérée.
+  typeCompte?: 'particulier' | 'association' | null
   dateNaissance?: string   // absent ou null → compte light (invité sans DDN)
   // Statut KYC opérateur (numéro = compte Mobile Money actif ?).
   // Persisté ici pour éviter un GET /auth/me au montage du profil.

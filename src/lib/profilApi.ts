@@ -22,6 +22,7 @@ export interface StoreUser {
   prenom: string
   telephone: string
   typeClient: 'particulier' | 'entreprise' | 'marchand'
+  typeCompte?: 'particulier' | 'association' | null
   dateNaissance?: string
   email?: string
   adresse?: string
@@ -84,6 +85,7 @@ export function authUserToStoreUser(u: AuthUser): StoreUser {
     prenom: u.prenom,
     telephone: u.numero,
     typeClient: u.type_client as 'particulier' | 'entreprise' | 'marchand',
+    typeCompte: (u.type_compte ?? null) as 'particulier' | 'association' | null,
     dateNaissance: u.date_naissance,
     email: u.email,
     adresse: u.adresse,

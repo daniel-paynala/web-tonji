@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { T } from '@/lib/tokens'
-import { TONTINES_ACTIVES, CAGNOTTES_PUBLIQUES_ACTIVES } from '@/lib/featureFlags'
+import { TONTINES_ACTIVES } from '@/lib/featureFlags'
 import { ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import {
@@ -900,7 +900,7 @@ function BottomSheetCgu({ onClose }: { onClose: () => void }) {
     },
     {
       titre: 'Périmètre v1',
-      corps: "Les cagnottes publiques (ouvertes au grand public) et les associations comme bénéficiaires ne sont pas disponibles dans cette version. Cf. réglementation gabonaise sur les dons (loi n°35/62).",
+      corps: "Les cagnottes publiques (crowdfunding ouvert à tous) sont réservées aux associations validées et passent en modération avant publication. Les autres comptes créent des cagnottes privées. Cf. réglementation gabonaise sur les dons (loi n°35/62).",
     },
   ]
   return (
@@ -1024,6 +1024,14 @@ export default function MobileCreateCagnotte() {
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore(s => s.user)
+
+  // Seules les associations peuvent créer une cagnotte PUBLIQUE (crowdfunding
+  // modéré) : l'étape de portée n'apparaît que pour elles ; les autres comptes
+  // créent des cagnottes privées. Le backend applique la même règle.
+  const estAssociation = user?.typeCompte === 'association'
+  // Plafond total de collecte (UX) selon le type de compte. Le backend enforce
+  // la valeur exacte configurée en base (renvoie une 422 si dépassement).
+  const plafondCible = estAssociation ? 10000000 : 2500000
 
   // Type éventuellement transmis par l'accueil via location.state (sinon sheet).
   const typeFromState = (location.state as { type?: TypeC } | null)?.type ?? null
@@ -1209,9 +1217,9 @@ export default function MobileCreateCagnotte() {
         }
       }
     } else {
-      // Étapes Objectif puis Durée. Index +1 chacune si l'étape Visibilité est
-      // active (CAGNOTTES_PUBLIQUES_ACTIVES), sinon Objectif=1, Durée=2.
-      const idxObjectif = CAGNOTTES_PUBLIQUES_ACTIVES ? 2 : 1
+      // Étapes Objectif puis Durée. Index +1 chacune si l'étape Portée est
+      // active (association), sinon Objectif=1, Durée=2.
+      const idxObjectif = estAssociation ? 2 : 1
       if (e === 0) {
         if (!titre.trim()) errs.titre = 'Nom requis'
       } else if (e === idxObjectif) {
@@ -1221,6 +1229,8 @@ export default function MobileCreateCagnotte() {
           const m = parseInt(montantCible.replace(/\s/g, ''))
           if (!montantCible.trim()) errs.montantCible = 'Indiquez un montant'
           else if (!m || m < 100) errs.montantCible = 'Minimum 100 FCFA'
+          else if (m > plafondCible)
+            errs.montantCible = `Maximum ${plafondCible.toLocaleString('fr-FR').replace(/ /g, ' ')} FCFA`
         }
       }
       // L'étape Durée (idxObjectif + 1) n'a pas de validation : la date reste
@@ -1286,8 +1296,9 @@ export default function MobileCreateCagnotte() {
           numero_retrait: numeroRetrait,
           reference: reference ?? genererIdLocal(),
           reversement_auto: reversementAuto,
-          // Visibilité : publique réservée aux cagnottes ouvertes (miroir toCreationJson Dart).
-          visibilite: visibilite === 'public' ? 'public' : 'prive',
+          // Visibilité : publique réservée aux ASSOCIATIONS (le backend force
+          // privé sinon). Une publique passe en modération avant publication.
+          visibilite: (estAssociation && visibilite === 'public') ? 'public' : 'prive',
         }
         // Description envoyée uniquement si publique et non vide.
         if (visibilite === 'public' && description.trim()) payload.description = description.trim()
@@ -1464,10 +1475,10 @@ export default function MobileCreateCagnotte() {
         <AnimItem delay={0.24}><BoutonSuivant onTap={etapeSuivante} accent={accent} /></AnimItem>
       </>
     ),
-    // 1 — Visibilité (privée / publique) — P1 #4 : étape RETIRÉE du flux au
-    // lancement (cagnottes v1 privées, cadrage juridique). Le code est conservé
-    // et réactivable en repassant CAGNOTTES_PUBLIQUES_ACTIVES à true.
-    ...(CAGNOTTES_PUBLIQUES_ACTIVES ? [() => (
+    // 1 — Portée (privée / publique) : étape affichée UNIQUEMENT pour les
+    // comptes association (crowdfunding modéré réservé aux associations). Les
+    // autres comptes n'ont pas cette étape (cagnotte privée par défaut).
+    ...(estAssociation ? [() => (
       <>
         <AnimItem><TitreEtape sous="Qui peut voir et contribuer à cette cagnotte ?" /></AnimItem>
         <div style={{ height: '32px' }} />
