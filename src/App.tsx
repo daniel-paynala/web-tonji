@@ -66,6 +66,9 @@ import PrivateRoute from '@/components/guards/PrivateRoute'
 // Popup téléchargement de l'app
 import AppDownloadPopup, { shouldShowAppPopup, markAppPopupDone } from '@/components/AppDownloadPopup'
 
+// Overlay de chargement global (anti double-clic)
+import LoadingOverlay from '@/components/ui/LoadingOverlay'
+
 // ── Détection navigateur mobile (pour la logique deep link uniquement) ─────────
 
 function isMobileUA(): boolean {
@@ -215,6 +218,10 @@ export default function App() {
         {/* Scission d'interface : arbre de routes choisi selon l'appareil. */}
         {isMobile ? <MobileRoutes /> : <DesktopRoutes />}
       </BrowserRouter>
+
+      {/* Overlay de chargement global : bloque l'écran pendant toute action
+          mutante (POST/PATCH/DELETE) → empêche les double-clics. */}
+      <LoadingOverlay />
 
       {/* Popup téléchargement (hors BrowserRouter pour éviter les conflits de contexte) */}
       {showPopup && (

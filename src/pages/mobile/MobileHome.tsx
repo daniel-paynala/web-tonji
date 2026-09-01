@@ -175,6 +175,7 @@ function CarteCagnotte({ c, delay }: { c: Cagnotte; delay: number }) {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, delay, ease: 'easeOut' }}
+      whileHover={{ y: -3, boxShadow: '0 12px 28px rgba(10,104,71,0.12)' }}
       whileTap={{ scale: 0.98 }}
       onClick={() => navigate(`/cagnottes/${c.id}`)}
       style={{

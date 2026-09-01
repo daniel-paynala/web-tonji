@@ -1,3 +1,5 @@
+import { useLoadingStore } from '@/store/loadingStore'
+
 const BASE = import.meta.env.VITE_API_URL ?? 'http://51.44.254.213'
 
 function token(): string | null {
@@ -22,26 +24,35 @@ async function request<T>(
   const t = token()
   if (t) headers['Authorization'] = `Bearer ${t}`
 
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  // Toute requête MUTANTE (POST/PATCH/DELETE/PUT) affiche l'overlay global de
+  // chargement → écran bloqué le temps de l'action = pas de double-clic.
+  const mutante = method !== 'GET' && method !== 'HEAD'
+  if (mutante) useLoadingStore.getState().start()
 
-  const data = await res.json().catch(() => ({}))
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
 
-  if (!res.ok) {
-    // Laravel renvoie les erreurs dans `message` ou `errors`
-    const msg =
-      (data as { message?: string }).message ||
-      Object.values((data as { errors?: Record<string, string[]> }).errors ?? {})
-        .flat()
-        .join(' ') ||
-      `Erreur ${res.status}`
-    throw new ApiError(res.status, msg)
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      // Laravel renvoie les erreurs dans `message` ou `errors`
+      const msg =
+        (data as { message?: string }).message ||
+        Object.values((data as { errors?: Record<string, string[]> }).errors ?? {})
+          .flat()
+          .join(' ') ||
+        `Erreur ${res.status}`
+      throw new ApiError(res.status, msg)
+    }
+
+    return data as T
+  } finally {
+    if (mutante) useLoadingStore.getState().stop()
   }
-
-  return data as T
 }
 
 export class ApiError extends Error {
