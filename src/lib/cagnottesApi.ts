@@ -44,6 +44,7 @@ export interface RawPaiement {
   participant_nom?: string
   montant: number
   date: string
+  commentaire?: string | null
 }
 
 export interface RawReversement {
@@ -157,6 +158,12 @@ export interface Paiement {
   participantNom: string
   montant: number
   date: string
+  /**
+   * Commentaire libre laisse par le cotisant au moment de payer.
+   * Le backend ne le renvoie qu'au gerant de la cagnotte et a l'auteur du
+   * paiement : `null` quand il est absent ou non visible.
+   */
+  commentaire: string | null
 }
 
 export interface Reversement {
@@ -256,6 +263,7 @@ function paiementFromRaw(r: RawPaiement): Paiement {
     participantNom: r.participant_nom ?? '',
     montant:        r.montant,
     date:           r.date,
+    commentaire:    r.commentaire ?? null,
   }
 }
 
@@ -461,11 +469,31 @@ export interface CotisationResult {
   message?: string
 }
 
-export async function cotiser(cagnotteReference: string, montant: number): Promise<CotisationResult> {
+/**
+ * Lance une cotisation.
+ *
+ * `commentaire` est facultatif (140 caracteres max cote backend) : le cotisant
+ * peut y preciser une particularite de son don ou indiquer qu'il cotise pour
+ * quelqu'un d'autre. Une saisie vide n'est pas envoyee, pour que le backend
+ * enregistre NULL plutot qu'une chaine vide.
+ */
+export async function cotiser(
+  cagnotteReference: string,
+  montant: number,
+  commentaire?: string,
+): Promise<CotisationResult> {
+  const commentaireNettoye = commentaire?.trim()
   const data = await api.post<{
     trans_id: string; statut: string; montant_net: number
     frais: number; montant_brut: number; message?: string
-  }>('/api/mobile/cotisations', { cagnotte_reference: cagnotteReference, montant })
+  }>('/api/mobile/cotisations', {
+    cagnotte_reference: cagnotteReference,
+    montant,
+    // Canal d'origine : tondo-web tape le meme endpoint que l'app, sans ce
+    // champ les cotisations web seraient comptees comme des cotisations app.
+    canal: 'web',
+    ...(commentaireNettoye ? { commentaire: commentaireNettoye } : {}),
+  })
   return {
     transId: data.trans_id,
     statut: data.statut,

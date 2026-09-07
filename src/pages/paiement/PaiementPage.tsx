@@ -41,6 +41,9 @@ export default function PaiementPage() {
   const [infoPub, setInfoPub]       = useState<InfoCagnottePublique | null>(null)
   const [cagnotte, setCagnotte]     = useState<CagnotteDetail | null>(null)
   const [montant, setMontant]       = useState('')
+  // Commentaire libre et facultatif (140 caracteres max, borne cote backend) :
+  // particularite du don, ou cotisation faite pour quelqu'un d'autre.
+  const [commentaire, setCommentaire] = useState('')
   const [erreurMsg, setErreurMsg]   = useState('')
   const [transId, setTransId]       = useState('')
   const [secondes, setSecondes]     = useState(180)
@@ -134,7 +137,7 @@ export default function PaiementPage() {
     setErreurMsg('')
     setPhase('envoi')
     try {
-      const result = await cotiser(id!, m)
+      const result = await cotiser(id!, m, commentaire)
       if (result.statut === 'succes') {
         setPhase('succes')
       } else {
@@ -269,6 +272,20 @@ export default function PaiementPage() {
                       <p className="text-xs text-text-tertiary mt-1">FCFA · min 100, max 500 000 *</p>
                     </div>
                   )}
+                </div>
+
+                {/* Commentaire facultatif — jamais rendu public : seuls le
+                    gerant de la cagnotte et l'auteur du paiement le voient. */}
+                <div className="mb-6">
+                  <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">Commentaire (facultatif)</p>
+                  <textarea
+                    value={commentaire}
+                    maxLength={140}
+                    rows={2}
+                    onChange={e => setCommentaire(e.target.value)}
+                    placeholder="ex : je cotise pour ma mère"
+                    className="w-full resize-none rounded-lg border border-border bg-surface-elevated px-4 py-3 text-sm text-text-strong outline-none placeholder:text-text-tertiary/60"
+                  />
                 </div>
 
                 <p className="text-xs text-text-tertiary mb-6">* Des frais seront appliqués au moment du paiement</p>

@@ -241,6 +241,9 @@ export default function MobileCotiser() {
   const numero = user?.telephone ?? '—'
 
   // ── État ────────────────────────────────────────────────────────────────────
+  // Commentaire libre et facultatif (140 caracteres max, borne cote backend) :
+  // particularite du don, ou cotisation faite pour quelqu'un d'autre.
+  const [commentaire, setCommentaire] = useState('')
   const [montant, setMontant] = useState(
     args.montantSuggere != null ? args.montantSuggere.toString() : '',
   )
@@ -386,7 +389,7 @@ export default function MobileCotiser() {
     setErreurMessage(null)
     setPhase('envoi')
     try {
-      const result = await cotiser(id!, m)
+      const result = await cotiser(id!, m, commentaire)
       if (result.statut === 'succes') {
         setPhase('succes')
       } else {
@@ -662,6 +665,28 @@ export default function MobileCotiser() {
               </div>
             </div>
           )}
+
+          <div style={{ height: '16px' }} />
+
+          {/* Commentaire facultatif — miroir du champ de cotiser_screen.dart.
+              Jamais rendu public : seuls le gerant et l'auteur le voient. */}
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: T.textSec, marginBottom: '6px' }}>
+            Commentaire (facultatif)
+          </label>
+          <textarea
+            value={commentaire}
+            maxLength={140}
+            rows={2}
+            onChange={e => setCommentaire(e.target.value)}
+            placeholder="ex : je cotise pour ma mère"
+            style={{
+              width: '100%', boxSizing: 'border-box', resize: 'none',
+              background: T.surfaceEl, borderRadius: '14px',
+              border: `1.5px solid ${T.border}`, padding: '14px 16px',
+              fontSize: '15px', fontFamily: 'inherit', color: T.textStrong,
+              outline: 'none',
+            }}
+          />
 
           <div style={{ height: '12px' }} />
           <FraisNote />

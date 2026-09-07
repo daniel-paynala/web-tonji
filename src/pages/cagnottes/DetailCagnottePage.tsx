@@ -283,10 +283,15 @@ export default function DetailCagnottePage() {
             ) : (
               <div className="flex flex-col gap-2">
                 {c.historique.map(p => (
-                  <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl border" style={{ background: T.surfaceEl, borderColor: `${T.border}B3` }}>
-                    <div>
+                  <div key={p.id} className="flex items-start justify-between gap-3 px-4 py-3 rounded-xl border" style={{ background: T.surfaceEl, borderColor: `${T.border}B3` }}>
+                    <div className="min-w-0">
                       <p className="text-sm font-medium" style={{ color: T.textStrong }}>{p.participantNom || '—'}</p>
                       <p className="text-2xs" style={{ color: T.textTert }}>{p.date}</p>
+                      {/* Commentaire du cotisant, seulement s'il en a laisse un.
+                          Le backend ne le renvoie qu'au gerant et a l'auteur. */}
+                      {p.commentaire && p.commentaire.trim() !== '' && (
+                        <p className="text-2xs italic mt-1" style={{ color: T.textSec }}>« {p.commentaire.trim()} »</p>
+                      )}
                     </div>
                     <span className="text-sm font-semibold" style={{ color: T.success }}>+{fmt(p.montant)}</span>
                   </div>

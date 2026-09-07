@@ -158,6 +158,9 @@ export default function CotiserPage() {
 
   // ── État (miroir de MobileCotiser) ─────────────────────────────────────────
   const [montant, setMontant] = useState(args.montantSuggere != null ? args.montantSuggere.toString() : '')
+  // Commentaire libre et facultatif (140 caracteres max, borne cote backend) :
+  // particularite du don, ou cotisation faite pour quelqu'un d'autre.
+  const [commentaire, setCommentaire] = useState('')
   const [phase, setPhase] = useState<Phase>('formulaire')
   const [erreurMessage, setErreurMessage] = useState<string | null>(null)
   const [transId, setTransId] = useState<string | null>(null)
@@ -257,7 +260,7 @@ export default function CotiserPage() {
     setErreurMessage(null)
     setPhase('envoi')
     try {
-      const result = await cotiser(id!, m)
+      const result = await cotiser(id!, m, commentaire)
       if (result.statut === 'succes') {
         setPhase('succes')
       } else {
@@ -456,6 +459,23 @@ export default function CotiserPage() {
                 </div>
               </div>
             )}
+
+            {/* Commentaire facultatif — jamais rendu public : seuls le gerant
+                de la cagnotte et l'auteur du paiement le voient. */}
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textSec }}>
+                Commentaire (facultatif)
+              </label>
+              <textarea
+                value={commentaire}
+                maxLength={140}
+                rows={2}
+                onChange={e => setCommentaire(e.target.value)}
+                placeholder="ex : je cotise pour ma mère"
+                className="mt-1.5 w-full resize-none rounded-lg px-4 py-3 text-base outline-none"
+                style={{ background: T.surfaceEl, border: `1.5px solid ${T.border}`, color: T.textStrong, fontFamily: 'inherit' }}
+              />
+            </div>
 
             <div className="flex items-start gap-1.5">
               <span className="shrink-0 pt-0.5"><IconInfo color={T.textTert} /></span>

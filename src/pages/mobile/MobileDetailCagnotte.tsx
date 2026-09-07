@@ -618,41 +618,87 @@ function ToggleReversementAuto({ c, onReload }: { c: CagnotteDetail; onReload: (
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px',
-      padding: '12px 14px 14px 16px', borderRadius: '16px',
+      marginBottom: '16px',
+      padding: '14px 16px 16px', borderRadius: '16px',
       background: actif ? 'rgba(10,104,71,0.06)' : T.surfaceEl,
       border: `1.3px solid ${actif ? 'rgba(10,104,71,0.40)' : T.border}`,
       transition: 'all 0.22s',
     }}>
-      <span style={{ color: actif ? T.primary : T.textSec }}><IconRefresh /></span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: '15px', fontWeight: 700, color: T.textStrong }}>Recevoir l'argent automatiquement</p>
-        {/* Corps identique dans les deux états ; seul le verbe change (miroir Flutter). */}
-        <p style={{ fontSize: '12px', marginTop: '2px', color: actif ? T.primary : T.textSec }}>
-          {actif ? 'Désactiver' : 'Activer'} le reversement automatique tous les soirs à 18h.
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        <span style={{ color: actif ? T.primary : T.textSec, flexShrink: 0 }}><IconRefresh /></span>
+        {/* Question posee directement au gerant : le reglage se lit sans avoir
+            a interpreter la position d'un interrupteur (miroir Flutter). */}
+        <p style={{ fontSize: '15px', fontWeight: 700, color: T.textStrong, lineHeight: 1.3 }}>
+          Voulez-vous recevoir l&apos;argent de la cagnotte tous les jours à 18h ?
         </p>
       </div>
-      {enCours ? (
-        <span style={{ width: 22, height: 22, border: `2.2px solid rgba(10,104,71,0.25)`, borderTopColor: T.primary, borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
-      ) : (
-        <button
-          onClick={() => toggle(!actif)}
-          role="switch"
-          aria-checked={actif}
-          style={{
-            width: 46, height: 28, borderRadius: 14, border: 'none', flexShrink: 0,
-            background: actif ? 'rgba(10,104,71,0.35)' : T.borderStr,
-            position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
-          }}
-        >
-          <span style={{
-            position: 'absolute', top: 3, left: actif ? 21 : 3, width: 22, height: 22,
-            borderRadius: '50%', background: actif ? T.primary : T.surfaceEl,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s, background 0.2s',
-          }} />
-        </button>
-      )}
+
+      {/* Le bouton mis en avant est celui qui EST en vigueur : il dit l'etat de
+          la config, pas l'action a venir. */}
+      <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+        <BoutonOuiNon
+          libelle="Oui"
+          selectionne={actif}
+          enChargement={enCours && actif}
+          onClick={actif || enCours ? undefined : () => toggle(true)}
+        />
+        <BoutonOuiNon
+          libelle="Non"
+          selectionne={!actif}
+          enChargement={enCours && !actif}
+          onClick={!actif || enCours ? undefined : () => toggle(false)}
+        />
+      </div>
     </div>
+  )
+}
+
+/**
+ * Bouton de choix binaire du reversement automatique — miroir de _BoutonOuiNon.
+ *
+ * `selectionne` indique la configuration EN VIGUEUR (pas l'action proposee) :
+ * le bouton plein est celui qui s'applique actuellement a la cagnotte.
+ * `onClick` a `undefined` desactive le bouton — cas du choix deja actif, ou
+ * d'un appel API en cours.
+ */
+function BoutonOuiNon({ libelle, selectionne, enChargement, onClick }: {
+  libelle: string
+  selectionne: boolean
+  enChargement: boolean
+  onClick?: () => void
+}) {
+  // Couleur portee par l'etat retenu : vert pour « Oui » (reversement actif),
+  // neutre pour « Non » — un refus n'est pas une erreur, pas de rouge.
+  const couleurActive = libelle === 'Oui' ? T.primary : T.textSec
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      aria-pressed={selectionne}
+      style={{
+        flex: 1,
+        // Hauteur genereuse : cible tactile confortable, y compris pour les
+        // utilisateurs peu a l'aise avec le tactile.
+        height: '46px',
+        borderRadius: '12px',
+        border: `1.3px solid ${selectionne ? couleurActive : T.border}`,
+        background: selectionne ? couleurActive : T.surface,
+        color: selectionne ? T.surface : T.textSec,
+        fontSize: '15px', fontWeight: 700, fontFamily: 'inherit',
+        cursor: onClick ? 'pointer' : 'default',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'background 0.18s, border-color 0.18s, color 0.18s',
+      }}
+    >
+      {enChargement ? (
+        <span style={{
+          width: 18, height: 18, borderRadius: '50%', display: 'inline-block',
+          border: `2.2px solid rgba(255,255,255,0.35)`, borderTopColor: T.surface,
+          animation: 'spin 0.7s linear infinite',
+        }} />
+      ) : libelle}
+    </button>
   )
 }
 
@@ -873,6 +919,13 @@ function BlocHistoriqueUnifie({ historique, sorties, onExporter }: { historique:
                     {item.nom}
                   </p>
                   <p style={{ fontSize: '12px', color: T.textSec, marginTop: '2px' }}>{formatDateHeure(item.date)}</p>
+                  {/* Commentaire du cotisant, seulement s'il en a laisse un.
+                      Le backend ne le renvoie qu'au gerant et a l'auteur. */}
+                  {item.commentaire && item.commentaire.trim() !== '' && (
+                    <p style={{ fontSize: '12px', color: T.textSec, marginTop: '4px', fontStyle: 'italic', lineHeight: 1.35 }}>
+                      « {item.commentaire.trim()} »
+                    </p>
+                  )}
                 </div>
                 <p style={{ fontSize: '14px', fontWeight: 800, color: amountColor, flexShrink: 0 }}>
                   {sign}{fmtMontant(item.montant)}
