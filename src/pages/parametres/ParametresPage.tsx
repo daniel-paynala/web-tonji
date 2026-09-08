@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import { useCgu } from '@/hooks/useCgu'
 
 // ─── Icônes ───────────────────────────────────────────────────────────────────
 
@@ -224,11 +225,18 @@ function SectionSecurite() {
 
 function SectionCGU() {
   const [expanded, setExpanded] = useState(false)
+  // Conditions rendues par le serveur — source unique des chiffres.
+  const { cgu } = useCgu()
 
   const sections = [
     { titre: '1. Objet', contenu: 'Les présentes CGU régissent l\'accès et l\'utilisation de la plateforme Tonji, développée par Paynala, permettant la création et la gestion de cagnottes et de tontines entre particuliers.' },
     { titre: '2. Numéro de retrait', contenu: 'Le numéro de retrait désigné à la création d\'une cagnotte est définitif et ne peut être modifié une fois la cagnotte activée. Cette règle vise à protéger les participants contre toute fraude.' },
-    { titre: '3. Frais et commissions', contenu: 'Paynala prélève une commission de 2 % sur chaque cotisation versée, à la charge du cotisant. S\'y ajoutent les frais opérateur : 3 % au paiement et 3 % au retrait (plafonné à 5 000 FCFA).' },
+    // Sections portant des chiffres : reprises du serveur, qui les interpole
+    // depuis la config opérateur. La version figée annonçait encore des frais
+    // de retrait à la charge du cotisant, retirés le 31 août 2026.
+    ...(cgu?.blocs ?? [])
+      .filter(b => b.titre === 'Modèle économique' || b.titre === 'Plafonds')
+      .map((b, i) => ({ titre: `3.${i + 1} ${b.titre}`, contenu: b.corps })),
     { titre: '4. Responsabilité', contenu: 'Paynala agit en tant qu\'intermédiaire technique et ne prend pas position dans les litiges entre membres d\'une cagnotte, sauf en cas de fraude manifeste signalée et documentée.' },
     { titre: '5. Utilisation frauduleuse', contenu: 'L\'utilisation de la plateforme à des fins frauduleuses entraîne la suspension immédiate du compte et peut faire l\'objet de poursuites judiciaires.' },
     { titre: '6. Données personnelles', contenu: 'Les données collectées sont utilisées exclusivement pour le fonctionnement de la plateforme et la vérification KYC. Elles ne sont pas revendues à des tiers.' },

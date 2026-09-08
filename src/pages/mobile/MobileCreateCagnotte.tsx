@@ -31,6 +31,7 @@ import {
   creerCagnotte,
 } from '@/lib/cagnottesApi'
 import type { Visibilite } from '@/lib/cagnottesApi'
+import { useCgu } from '@/hooks/useCgu'
 
 // ── Types métier ────────────────────────────────────────────────────────────
 type TypeC = 'tontine' | 'cotisation'
@@ -879,30 +880,17 @@ function LienRappelCGU({ accent, onOpen }: { accent: string; onOpen: () => void 
 
 /** Bottom sheet CGU — résumé court en puces + blocs légaux détaillés. */
 function BottomSheetCgu({ onClose }: { onClose: () => void }) {
-  const RESUME = [
-    'Le montant collecté sera reversé sur votre numéro de retrait.',
-    'Ce numéro ne pourra plus être changé après création.',
-    'Les frais sont à la charge du cotisant, appliqués au paiement.',
-    "Tonji n'arbitre pas les conflits entre membres, sauf cas manifestement clair.",
-  ]
-  const DETAIL = [
-    {
-      titre: 'Modèle économique',
-      corps: 'Tonji prélève une commission de 2 % à la charge du cotisant. Les frais opérateur (3 % paiement, plafonnés à 5 000 FCFA, et 3 % retrait) sont également à la charge du cotisant. Le bénéficiaire reçoit le montant net transféré.',
-    },
-    {
-      titre: 'Numéro de retrait',
-      corps: 'Ce numéro ne pourra plus être changé après création. Cette règle protège tous les membres contre la fraude.',
-    },
-    {
-      titre: 'Différends entre membres',
-      corps: "Tonji facilite la collecte mais n'arbitre pas les conflits entre cotisants et bénéficiaires, sauf cas manifestement clair (ex : usurpation d'identité). Vous restez responsable du choix de vos co-membres.",
-    },
-    {
-      titre: 'Périmètre v1',
-      corps: "Les cagnottes publiques (crowdfunding ouvert à tous) sont réservées aux associations validées et passent en modération avant publication. Les autres comptes créent des cagnottes privées. Cf. réglementation gabonaise sur les dons (loi n°35/62).",
-    },
-  ]
+  // Résumé et détail produits par le serveur depuis la config opérateur : les
+  // copies figées qui vivaient ici annonçaient encore des frais de retrait à la
+  // charge du cotisant, retirés le 31 août.
+  const { cgu, erreur: cguErreur } = useCgu()
+  const RESUME = cgu?.resume ?? []
+  const DETAIL = cgu?.blocs ?? []
+  if (cguErreur) {
+    RESUME.push(
+      'Conditions momentanément indisponibles. Vous pouvez les consulter sur tonji.ga/conditions.',
+    )
+  }
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

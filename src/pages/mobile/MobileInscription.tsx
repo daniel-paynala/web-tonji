@@ -34,6 +34,7 @@ import { T, grad } from '@/lib/tokens'
 import { requestOtp, verifyOtpSignup } from '@/lib/authApi'
 import { kycCheck } from '@/lib/kycApi'
 import { ApiError } from '@/lib/api'
+import { useCgu } from '@/hooks/useCgu'
 
 // ── Statut KYC (miroir de l'enum _KycStatut Dart) ─────────────────────────────
 type KycStatut = 'idle' | 'chargement' | 'verifie' | 'bloque'
@@ -184,6 +185,8 @@ function CheckVert() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function MobileInscription() {
+  // Conditions d'utilisation rendues par le serveur (source unique).
+  const { cgu, erreur: cguErreur } = useCgu()
   const navigate = useNavigate()
   const location = useLocation()
   const login    = useAuthStore(s => s.login)
@@ -657,16 +660,15 @@ export default function MobileInscription() {
             >
               <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: T.border, margin: '0 auto 20px' }} />
               <p style={{ fontSize: '20px', fontWeight: 800, color: T.textStrong, marginBottom: '16px' }}>Conditions d'utilisation</p>
-              {[
-                ['Reversement automatique', 'Le montant collecté est automatiquement reversé sur le numéro de retrait enregistré à la création.'],
-                ['Numéro de retrait immuable', 'Ce numéro ne pourra plus être changé après création de la cagnotte — ceci protège les membres contre la fraude.'],
-                ['Frais', 'Les frais sont à la charge du cotisant et appliqués au moment du paiement. Tonji perçoit une commission de 2 %.'],
-                ['Litiges', "Tonji facilite la collecte mais n'arbitre pas les conflits entre membres, sauf cas manifestement clair (ex : usurpation d'identité)."],
-                ['Périmètre v1', 'Les cagnottes publiques et les associations comme bénéficiaires ne sont pas disponibles dans cette version (loi gabonaise n°35/62).'],
-              ].map(([titre, texte]) => (
-                <div key={titre} style={{ marginBottom: '16px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: 700, color: T.textStrong, marginBottom: '4px' }}>{titre}</p>
-                  <p style={{ fontSize: '14px', color: T.textSec, lineHeight: 1.55 }}>{texte}</p>
+              {/* Texte produit par le serveur depuis la config opérateur. */}
+              {cguErreur ? (
+                <p style={{ fontSize: '14px', color: T.textSec, lineHeight: 1.55, marginBottom: '16px' }}>
+                  Conditions momentanément indisponibles. Vous pouvez les consulter sur tonji.ga/conditions.
+                </p>
+              ) : (cgu?.blocs ?? []).map(bloc => (
+                <div key={bloc.titre} style={{ marginBottom: '16px' }}>
+                  <p style={{ fontSize: '14px', fontWeight: 700, color: T.textStrong, marginBottom: '4px' }}>{bloc.titre}</p>
+                  <p style={{ fontSize: '14px', color: T.textSec, lineHeight: 1.55 }}>{bloc.corps}</p>
                 </div>
               ))}
               <button

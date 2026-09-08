@@ -9,6 +9,7 @@ import { T } from '@/lib/tokens'
 import { requestOtp, verifyOtpSignup } from '@/lib/authApi'
 import { kycCheck } from '@/lib/kycApi'
 import { ApiError } from '@/lib/api'
+import { useCgu } from '@/hooks/useCgu'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // InscriptionPage (desktop) — MÊME process que MobileInscription (le mobile web
@@ -124,6 +125,8 @@ const champStyle = (disabled?: boolean): React.CSSProperties => ({
 
 // ── Composant principal ──────────────────────────────────────────────────────
 export default function InscriptionPage() {
+  // Conditions d'utilisation rendues par le serveur (source unique).
+  const { cgu, erreur: cguErreur } = useCgu()
   const isMobile = useMobile()
   const navigate = useNavigate()
   const location = useLocation()
@@ -429,16 +432,17 @@ export default function InscriptionPage() {
             <motion.div onClick={e => e.stopPropagation()} className="w-full max-w-lg rounded-3xl p-7 max-h-[85vh] overflow-y-auto" style={{ background: T.surfaceEl }}
               initial={{ scale: 0.94, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }} transition={{ duration: 0.2 }}>
               <p className="font-display font-bold text-xl mb-4" style={{ color: T.textStrong }}>Conditions d'utilisation</p>
-              {[
-                ['Reversement automatique', 'Le montant collecté est automatiquement reversé sur le numéro de retrait enregistré à la création.'],
-                ['Numéro de retrait immuable', 'Ce numéro ne pourra plus être changé après création de la cagnotte — ceci protège les membres contre la fraude.'],
-                ['Frais', 'Les frais sont à la charge du cotisant et appliqués au moment du paiement. Tonji perçoit une commission de 2 %.'],
-                ['Litiges', "Tonji facilite la collecte mais n'arbitre pas les conflits entre membres, sauf cas manifestement clair (ex : usurpation d'identité)."],
-                ['Périmètre v1', 'Les cagnottes publiques et les associations comme bénéficiaires ne sont pas disponibles dans cette version (loi gabonaise n°35/62).'],
-              ].map(([titre, texte]) => (
-                <div key={titre} className="mb-4">
-                  <p className="text-sm font-bold mb-1" style={{ color: T.textStrong }}>{titre}</p>
-                  <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>{texte}</p>
+              {/* Texte produit par le serveur depuis la config opérateur. La
+                  copie figée qui vivait ici affirmait encore que les cagnottes
+                  publiques et les associations n'étaient pas disponibles. */}
+              {cguErreur ? (
+                <p className="text-sm leading-relaxed mb-4" style={{ color: T.textSec }}>
+                  Conditions momentanément indisponibles. Vous pouvez les consulter sur tonji.ga/conditions.
+                </p>
+              ) : (cgu?.blocs ?? []).map(bloc => (
+                <div key={bloc.titre} className="mb-4">
+                  <p className="text-sm font-bold mb-1" style={{ color: T.textStrong }}>{bloc.titre}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>{bloc.corps}</p>
                 </div>
               ))}
               <Button variant="primary" size="lg" className="w-full mt-2" onClick={() => setShowCgu(false)}>Fermer</Button>
