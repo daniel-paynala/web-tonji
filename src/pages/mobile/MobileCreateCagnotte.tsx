@@ -884,13 +884,13 @@ function BottomSheetCgu({ onClose }: { onClose: () => void }) {
   // copies figées qui vivaient ici annonçaient encore des frais de retrait à la
   // charge du cotisant, retirés le 31 août.
   const { cgu, erreur: cguErreur } = useCgu()
-  const RESUME = cgu?.resume ?? []
+  // Tableaux DÉRIVÉS : pousser dans `cgu.resume` reviendrait à muter l'état du
+  // hook. Inoffensif tant qu'il ne renvoie jamais un contenu ET une erreur,
+  // mais on ne dépend pas de cette coïncidence.
+  const RESUME = cguErreur
+    ? ['Conditions momentanément indisponibles. Vous pouvez les consulter sur tonji.ga/conditions.']
+    : (cgu?.resume ?? [])
   const DETAIL = cgu?.blocs ?? []
-  if (cguErreur) {
-    RESUME.push(
-      'Conditions momentanément indisponibles. Vous pouvez les consulter sur tonji.ga/conditions.',
-    )
-  }
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

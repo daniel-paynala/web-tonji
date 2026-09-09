@@ -234,9 +234,17 @@ function SectionCGU() {
     // Sections portant des chiffres : reprises du serveur, qui les interpole
     // depuis la config opérateur. La version figée annonçait encore des frais
     // de retrait à la charge du cotisant, retirés le 31 août 2026.
-    ...(cgu?.blocs ?? [])
-      .filter(b => b.titre === 'Modèle économique' || b.titre === 'Plafonds')
-      .map((b, i) => ({ titre: `3.${i + 1} ${b.titre}`, contenu: b.corps })),
+    //
+    // Repli explicite si le serveur n'a pas répondu : un document contractuel
+    // ne doit pas perdre silencieusement sa section sur les frais.
+    ...(cgu
+      ? cgu.blocs
+          .filter(b => b.titre === 'Modèle économique' || b.titre === 'Plafonds')
+          .map((b, i) => ({ titre: `3.${i + 1} ${b.titre}`, contenu: b.corps }))
+      : [{
+          titre: '3. Frais et commissions',
+          contenu: 'Conditions momentanément indisponibles. Vous pouvez les consulter sur tonji.ga/conditions.',
+        }]),
     { titre: '4. Responsabilité', contenu: 'Paynala agit en tant qu\'intermédiaire technique et ne prend pas position dans les litiges entre membres d\'une cagnotte, sauf en cas de fraude manifeste signalée et documentée.' },
     { titre: '5. Utilisation frauduleuse', contenu: 'L\'utilisation de la plateforme à des fins frauduleuses entraîne la suspension immédiate du compte et peut faire l\'objet de poursuites judiciaires.' },
     { titre: '6. Données personnelles', contenu: 'Les données collectées sont utilisées exclusivement pour le fonctionnement de la plateforme et la vérification KYC. Elles ne sont pas revendues à des tiers.' },
