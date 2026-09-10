@@ -97,9 +97,9 @@ export async function telechargerAfficheImage({ titre, reference }: AfficheCagno
   ctx.fillRect(0, 0, canvas.width, mm(8))
 
   // Logo dans un CERCLE VERT (haut à gauche) — la couleur de marque ressort.
-  const cd = 26 // diamètre du cercle (mm)
+  const cd = 32 // diamètre du cercle (mm)
   const ccx = M + cd / 2
-  const ccy = 20 + cd / 2
+  const ccy = 18 + cd / 2
   ctx.fillStyle = COL.primary
   ctx.beginPath()
   ctx.arc(mm(ccx), mm(ccy), mm(cd / 2), 0, Math.PI * 2)
@@ -117,32 +117,51 @@ export async function telechargerAfficheImage({ titre, reference }: AfficheCagno
 
   // Tagline — fait partie intégrante du logo (juste sous le cercle).
   ctx.fillStyle = COL.primary
-  ctx.font = `${pt(8)}px ${FONT}`
+  ctx.font = `${pt(11)}px ${FONT}`
   ctx.textAlign = 'left'
   ctx.fillText('Cotisez simplement.', mm(M), mm(ccy + cd / 2 + 5))
 
-  // Sous-titre d'incitation.
-  ctx.fillStyle = COL.accent
-  ctx.font = `bold ${pt(11)}px ${FONT}`
+  // ── Pile de titres ──────────────────────────────────────────────────────
+  // Trois lignes de tailles décroissantes : l'accroche, le nom, la consigne.
+  // `TAILLE_NOM` gouverne les trois — la consigne en fait 75 %, comme demandé.
+  const TAILLE_NOM = 26
+
+  // Accroche — même corps que le nom, en noir. Graisse normale volontairement :
+  // à corps égal et en gras, elle rivaliserait avec le nom de la cagnotte, qui
+  // doit rester l'élément dominant de l'affiche.
+  ctx.fillStyle = COL.ink
+  ctx.font = `${pt(TAILLE_NOM)}px ${FONT}`
   ctx.textAlign = 'center'
-  ctx.fillText('SCANNEZ POUR PARTICIPER', mm(W / 2), mm(62))
+  ctx.fillText('Cotisez à la cagnotte', mm(W / 2), mm(70))
 
   // Nom de la cagnotte (grand, centré, retour à la ligne si trop long).
   ctx.fillStyle = COL.ink
-  ctx.font = `bold ${pt(26)}px ${FONT}`
+  ctx.font = `bold ${pt(TAILLE_NOM)}px ${FONT}`
   ctx.textAlign = 'center'
   const lignes = couperTexte(ctx, titre || 'Cagnotte', mm(W - 2 * M))
-  const titreY = 76 // ligne de base de la 1re ligne (mm)
+  const titreY = 83 // ligne de base de la 1re ligne (mm)
   const interligne = 10 // espacement vertical entre lignes (mm)
   lignes.forEach((ligne, i) => {
     ctx.fillText(ligne, mm(W / 2), mm(titreY + i * interligne))
   })
   const titreH = lignes.length * interligne
 
+  // Consigne — vert, 75 % du corps du nom.
+  ctx.fillStyle = COL.primary
+  ctx.font = `bold ${pt(TAILLE_NOM * 0.75)}px ${FONT}`
+  ctx.textAlign = 'center'
+  const consigneY = titreY + titreH
+  ctx.fillText('Scannez pour participer', mm(W / 2), mm(consigneY))
+
   // Grande carte blanche + QR AU MAXIMUM.
-  const cardSize = 150
+  // La carte occupe tout l'espace restant, plafonnée à 150 mm. Sans ce calcul,
+  // un nom de cagnotte sur trois lignes pousserait la pastille hors de la page
+  // — le débordement était déjà possible avant l'ajout de la consigne.
+  const HAUT_MAX_CARTE = 150
+  const BAS_UTILE = 248 // au-delà, la pastille et sa marge ne tiennent plus
+  const cardSize = Math.min(HAUT_MAX_CARTE, BAS_UTILE - cardTop)
   const cardX = (W - cardSize) / 2
-  const cardTop = titreY + titreH + 4
+  const cardTop = consigneY + 5
   cheminArrondi(ctx, mm(cardX), mm(cardTop), mm(cardSize), mm(cardSize), mm(10))
   ctx.fillStyle = COL.white
   ctx.fill()
@@ -151,7 +170,8 @@ export async function telechargerAfficheImage({ titre, reference }: AfficheCagno
   ctx.stroke()
 
   // QR au centre de la carte.
-  const qrSize = 138
+  // Le QR suit la carte : 92 % de son côté, comme à la taille nominale.
+  const qrSize = cardSize * 0.92
   const qrX = (W - qrSize) / 2
   const qrY = cardTop + (cardSize - qrSize) / 2
   const qr = await chargerImage(qrDataUrl)
