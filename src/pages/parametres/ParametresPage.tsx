@@ -266,7 +266,7 @@ function SectionCGU() {
         <p className="text-sm font-semibold text-text-strong mb-2">Règles essentielles</p>
         <ul className="text-sm text-text-secondary space-y-1.5">
           {[
-            'Les fonds collectés sont reversés automatiquement sur le numéro de retrait.',
+            'Les fonds collectés sont transférés automatiquement sur le numéro de retrait.',
             'Le numéro de retrait ne peut plus être modifié après création.',
             'Les frais (2 % Paynala + frais opérateur) sont à la charge du cotisant.',
             'Paynala n\'arbitre pas les conflits entre membres.',

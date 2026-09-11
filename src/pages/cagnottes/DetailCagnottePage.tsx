@@ -219,7 +219,7 @@ export default function DetailCagnottePage() {
             </Button>
             {solde > 0 && (
               <Button variant="ghost" size="sm" onClick={() => navigate(`/cagnottes/${c.id}/reverser`, { state: { titre: c.titre, montantDisponible: solde, participants: c.participants } })}>
-                Reverser
+                Transférer
               </Button>
             )}
           </>
@@ -341,7 +341,7 @@ export default function DetailCagnottePage() {
               <p className="text-sm leading-relaxed mb-6" style={{ color: T.textSec }}>
                 {supprimerModal
                   ? 'Cette action est irréversible. La cagnotte sera définitivement supprimée.'
-                  : 'La cagnotte sera clôturée. Le solde éventuel devra d\'abord être reversé.'}
+                  : 'La cagnotte sera clôturée. Le solde éventuel devra d\'abord être transféré.'}
               </p>
               {supprimerModal ? (
                 <button onClick={confirmerSuppression} disabled={actionBusy}

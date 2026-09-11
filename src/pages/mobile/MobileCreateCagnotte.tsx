@@ -706,8 +706,8 @@ function SectionReversementAuto({
           </p>
           <p style={{ fontSize: '15px', color: reversementAuto ? accent : T.textSec, fontWeight: 500, lineHeight: 1.4 }}>
             {reversementAuto
-              ? 'Chaque paiement reçu est reversé en fin de journée sur votre numéro de retrait.'
-              : 'Le reversement se fera manuellement depuis la page de la cagnotte.'}
+              ? 'Chaque paiement reçu est transféré en fin de journée sur votre numéro de retrait.'
+              : 'Le transfert se fera manuellement depuis la page de la cagnotte.'}
           </p>
         </div>
         {/* Toggle switch */}
@@ -1467,7 +1467,7 @@ export default function MobileCreateCagnotte() {
       <>
         <AnimItem><TitreEtape sous="À quelle fréquence chacun cotise-t-il ?" /></AnimItem>
         <div style={{ height: '40px' }} />
-        <AnimItem><LabelSection>Fréquence de reversement</LabelSection></AnimItem>
+        <AnimItem><LabelSection>Fréquence de transfert</LabelSection></AnimItem>
         <div style={{ height: '12px' }} />
         <AnimItem delay={0.12}>
           <div style={{ display: 'flex', gap: '8px' }}>

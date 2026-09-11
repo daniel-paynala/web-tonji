@@ -159,7 +159,7 @@ export default function ReversementPage() {
           <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center" style={{ background: T.successSoft }}>
             <IconCheck />
           </div>
-          <p className="mt-6 text-xl font-bold" style={{ color: T.textStrong }}>Reversement effectué</p>
+          <p className="mt-6 text-xl font-bold" style={{ color: T.textStrong }}>Transfert effectué</p>
           <p className="mt-2 text-sm" style={{ color: T.textSec }}>Le montant a été envoyé à {nomBeneficiaire}.</p>
           <Button
             variant="primary" size="lg" className="mt-8 w-full"
@@ -176,7 +176,7 @@ export default function ReversementPage() {
   return (
     <Shell onBack={() => navigate(-1)} disabled={enEnvoi}>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }}>
-        <h1 className="font-display font-bold text-2xl tracking-tight" style={{ color: T.textStrong }}>Reversement</h1>
+        <h1 className="font-display font-bold text-2xl tracking-tight" style={{ color: T.textStrong }}>Transfert</h1>
         <p className="mt-1 text-sm" style={{ color: T.textSec }}>
           Envoyez une partie de la cagnotte sur un numéro Mobile Money.
         </p>
@@ -287,7 +287,7 @@ export default function ReversementPage() {
           {/* Montant */}
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textSec }}>
-              {fermerApres ? 'Montant total à reverser' : 'Montant à reverser'}
+              {fermerApres ? 'Montant total à transférer' : 'Montant à transférer'}
             </label>
             <div
               className="mt-1.5 flex items-center gap-3 rounded-xl px-4 py-3.5"
@@ -306,7 +306,7 @@ export default function ReversementPage() {
               <span className="text-base font-bold" style={{ color: T.textSec }}>FCFA</span>
             </div>
             {fermerApres && (
-              <p className="text-xs mt-1.5" style={{ color: T.textTert }}>Le solde intégral sera reversé avant fermeture.</p>
+              <p className="text-xs mt-1.5" style={{ color: T.textTert }}>Le solde intégral sera transféré avant fermeture.</p>
             )}
           </div>
 
@@ -325,7 +325,7 @@ export default function ReversementPage() {
           <Button variant="primary" size="lg" className="w-full" loading={enEnvoi}
                   disabled={verif.interdit} onClick={soumettre}>
             {!enEnvoi && <IconSend />}
-            {enEnvoi ? 'Envoi…' : 'Confirmer le reversement'}
+            {enEnvoi ? 'Envoi…' : 'Confirmer le transfert'}
           </Button>
         </Card>
       </motion.div>

@@ -752,7 +752,7 @@ function exporterHistorique(c: CagnotteDetail) {
     ? `<tr><td colspan="4" style="text-align:center;padding:32px;color:#8A8F8C;">Aucun mouvement enregistré.</td></tr>`
     : mouvements.map(m => `
       <tr>
-        <td><span class="${m.estSortie ? 'b-sortie' : 'b-entree'}">${m.estSortie ? 'Reversement' : 'Paiement'}</span></td>
+        <td><span class="${m.estSortie ? 'b-sortie' : 'b-entree'}">${m.estSortie ? 'Transfert' : 'Paiement'}</span></td>
         <td>${escHtml(m.nom)}</td>
         <td style="white-space:nowrap">${fmtD(m.date)}</td>
         <td class="${m.estSortie ? 'amt-s' : 'amt-e'}">${m.estSortie ? '–' : '+'}${fmtM(m.montant)}</td>
@@ -827,7 +827,7 @@ function exporterHistorique(c: CagnotteDetail) {
 
   <div class="resume">
     <div class="rc"><div class="rc-label">Total encaissé</div><div class="rc-value c-success">+${fmtM(totalEntrees)}</div></div>
-    ${totalSorties > 0 ? `<div class="rc"><div class="rc-label">Total reversé</div><div class="rc-value c-accent">–${fmtM(totalSorties)}</div></div>` : ''}
+    ${totalSorties > 0 ? `<div class="rc"><div class="rc-label">Total transféré</div><div class="rc-value c-accent">–${fmtM(totalSorties)}</div></div>` : ''}
     <div class="rc"><div class="rc-label">Solde historique</div><div class="rc-value c-primary">${fmtM(solde)}</div></div>
     <div class="rc"><div class="rc-label">Mouvements</div><div class="rc-value c-primary">${mouvements.length}</div></div>
   </div>
@@ -1693,7 +1693,7 @@ export default function MobileDetailCagnotte() {
                 })}
                 style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.accent}`, color: T.accent, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
               >
-                <IconDownload /> Reverser
+                <IconDownload /> Transférer
               </button>
             )
             // Inviter — masqué si tontine pleine/lancée ou cagnotte clôturée

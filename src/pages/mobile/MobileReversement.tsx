@@ -197,7 +197,7 @@ export default function MobileReversement() {
           <IconCheck />
         </div>
         <p style={{ fontSize: '22px', fontWeight: 700, color: T.textStrong, textAlign: 'center', marginBottom: '10px' }}>
-          Reversement effectué
+          Transfert effectué
         </p>
         <p style={{ fontSize: '14px', color: T.textSec, textAlign: 'center', marginBottom: '32px' }}>
           Le montant a été envoyé à {nomBeneficiaire}.
@@ -235,7 +235,7 @@ export default function MobileReversement() {
         <div style={{ padding: '20px 20px 32px' }}>
 
           {/* Titre + sous-titre */}
-          <p style={{ fontSize: '26px', fontWeight: 800, color: T.textStrong, marginBottom: '4px' }}>Reversement</p>
+          <p style={{ fontSize: '26px', fontWeight: 800, color: T.textStrong, marginBottom: '4px' }}>Transfert</p>
           <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '20px' }}>
             Envoyez une partie de la cagnotte sur un numéro Mobile Money.
           </p>
@@ -363,7 +363,7 @@ export default function MobileReversement() {
 
           {/* Montant — verrouillé en mode fermeture (reversement intégral obligatoire) */}
           <p style={{ fontSize: '12px', color: T.textSec, fontWeight: 600, marginBottom: '6px' }}>
-            {fermerApres ? 'Montant total à reverser (FCFA)' : 'Montant à reverser (FCFA)'}
+            {fermerApres ? 'Montant total à transférer (FCFA)' : 'Montant à transférer (FCFA)'}
           </p>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '12px',
@@ -385,7 +385,7 @@ export default function MobileReversement() {
           {/* Helper text en mode fermeture */}
           {fermerApres && (
             <p style={{ fontSize: '12px', color: T.textTert, marginTop: '6px' }}>
-              Le solde intégral sera reversé avant fermeture.
+              Le solde intégral sera transféré avant fermeture.
             </p>
           )}
 
@@ -419,7 +419,7 @@ export default function MobileReversement() {
             {enEnvoi ? (
               <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2.4px solid rgba(255,255,255,0.4)', borderTopColor: T.surfaceEl, animation: 'spin 0.8s linear infinite' }} />
             ) : (
-              <><IconSend /> Confirmer le reversement</>
+              <><IconSend /> Confirmer le transfert</>
             )}
           </button>
         </div>
