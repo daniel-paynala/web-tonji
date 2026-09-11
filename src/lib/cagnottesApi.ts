@@ -385,12 +385,23 @@ export async function genererReference(): Promise<string> {
   return data.reference
 }
 
+/**
+ * Vérifie qu'un numéro porte bien un compte Mobile Money actif, et renvoie le
+ * nom de son titulaire.
+ *
+ * `titulaire` n'est renseigné que pour un compte Airtel vérifié : null pour
+ * Moov, pour un numéro sans compte, et si le service est indisponible.
+ */
 export async function verifierNumeroRetrait(numero9digits: string): Promise<{
   operateur: string
   kyc_ok?: boolean
+  titulaire?: string | null
   message?: string
 }> {
-  return api.post<{ operateur: string; kyc_ok?: boolean; message?: string }>('/api/mobile/kyc/verifier-numero', { numero: numero9digits })
+  return api.post<{ operateur: string; kyc_ok?: boolean; titulaire?: string | null; message?: string }>(
+    '/api/mobile/kyc/verifier-numero',
+    { numero: numero9digits },
+  )
 }
 
 export interface CreerCagnottePayload {

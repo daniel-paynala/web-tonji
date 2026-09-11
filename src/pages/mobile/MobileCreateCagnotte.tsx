@@ -736,6 +736,37 @@ function SectionReversementAuto({
 // ════════════════════════════════════════════════════════════════════════════
 
 /** Indicateur compact d'état KYC. */
+/**
+ * Nom du titulaire du compte Mobile Money, affiché au-dessus du numéro.
+ *
+ * Miroir de `_LigneTitulaire` côté Flutter. Couche de vérification demandée par
+ * le produit : le numéro de retrait est immuable une fois la cagnotte créée, et
+ * deux chiffres intervertis donnent non pas une erreur mais un AUTRE numéro
+ * valide. Le nom est le seul élément qui permette de s'en rendre compte avant
+ * que ce ne soit définitif.
+ *
+ * Il vient de l'opérateur, pas de Tonji : d'où l'icône de vérification, qui
+ * évite de le confondre avec un nom saisi dans l'application.
+ */
+function LigneTitulaire({ nom }: { nom: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke={T.success} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+           style={{ flexShrink: 0 }} aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+      <span style={{
+        fontSize: '15px', fontWeight: 600, color: T.success,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {nom}
+      </span>
+    </div>
+  )
+}
+
 function KycIndicateur({ statut }: { statut: KycStatut }) {
   if (statut === 'idle') return null
   if (statut === 'en_cours') return (
@@ -761,23 +792,32 @@ function bandeauKycCouleurs(s: KycStatut): { bg: string; color: string } {
 }
 
 function SectionNumeroRetrait({
-  userNumero, choix, onChoix, autreNumero, onAutreNumero, kycStatut, kycMessage,
+  userNumero, choix, onChoix, autreNumero, onAutreNumero, kycStatut, kycMessage, kycTitulaire,
 }: {
   userNumero: string
   choix: ChoixRetrait | null; onChoix: (c: ChoixRetrait) => void
   autreNumero: string; onAutreNumero: (v: string) => void
   kycStatut: KycStatut; kycMessage: string
+  /** Nom du titulaire du compte Mobile Money, null tant qu'il n'est pas vérifié. */
+  kycTitulaire: string | null
 }) {
   // Carte d'option (mon numéro / autre numéro) avec bordure primaire si sélectionnée.
   const CarteOption = ({
-    id, icone, titre, sousTitre, enfant,
+    id, icone, titre, sousTitre, enfant, titulaireAuDessusDuChamp = false,
   }: {
     id: ChoixRetrait; icone: React.ReactNode; titre: string; sousTitre: string; enfant?: React.ReactNode
+    /**
+     * Place le titulaire au-dessus du champ de saisie plutôt qu'au-dessus du
+     * titre : sur la carte « Un autre numéro », le numéro est dans le champ, et
+     * le nom doit rester collé à ce qu'il qualifie.
+     */
+    titulaireAuDessusDuChamp?: boolean
   }) => {
     const selected = choix === id
     const ks: KycStatut = selected ? kycStatut : 'idle'
     const showBandeau = selected && kycMessage.length > 0 && ks !== 'idle' && ks !== 'en_cours'
     const c = bandeauKycCouleurs(kycStatut)
+    const titulaire = selected ? kycTitulaire : null
     return (
       <div
         onClick={() => onChoix(id)}
@@ -790,11 +830,18 @@ function SectionNumeroRetrait({
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ color: T.primary, flexShrink: 0 }}>{icone}</span>
           <div style={{ flex: 1 }}>
+            {/* Le titulaire passe AVANT le numéro : c'est lui qu'on veut voir
+                en premier, le numéro n'étant qu'une suite de chiffres qu'on
+                relit sans rien y remarquer. */}
+            {titulaire && !titulaireAuDessusDuChamp && <LigneTitulaire nom={titulaire} />}
             <p style={{ fontSize: '18px', fontWeight: 700, color: T.textStrong }}>{titre}</p>
             <p style={{ fontSize: '15px', color: T.textSec }}>{sousTitre}</p>
           </div>
           <KycIndicateur statut={ks} />
         </div>
+        {titulaire && titulaireAuDessusDuChamp && (
+          <div style={{ marginTop: '12px' }}><LigneTitulaire nom={titulaire} /></div>
+        )}
         {enfant}
         {showBandeau && (
           <div style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '10px', background: c.bg }}>
@@ -822,6 +869,7 @@ function SectionNumeroRetrait({
         icone={<IconDialpad />}
         titre="Un autre numéro"
         sousTitre="Saisir un numéro différent"
+        titulaireAuDessusDuChamp
         enfant={
           choix === 'autre_numero' ? (
             // Champ téléphone Gabon (indicatif +241 figé + saisie locale 0XXXXXXXX).
@@ -1070,6 +1118,11 @@ export default function MobileCreateCagnotte() {
   const [autreNumero, setAutreNumero] = useState('')
   const [kycStatut, setKycStatut] = useState<KycStatut>('idle')
   const [kycMessage, setKycMessage] = useState('')
+  // Nom du titulaire du compte Mobile Money, rapporté par le KYC opérateur.
+  // Le numéro de retrait est immuable une fois la cagnotte créée, et deux
+  // chiffres intervertis donnent un AUTRE numéro valide, pas une erreur : le
+  // nom est le seul élément qui permette de s'en apercevoir à temps.
+  const [kycTitulaire, setKycTitulaire] = useState<string | null>(null)
   const [numeroRetraitFinal, setNumeroRetraitFinal] = useState<string | null>(null)
 
   // Identifiant + création.
@@ -1106,6 +1159,7 @@ export default function MobileCreateCagnotte() {
     setChoix('mon_numero')
     setKycStatut('en_cours')
     setKycMessage('')
+    setKycTitulaire(null)
     setNumeroRetraitFinal(null)
     const local = userNumero.startsWith('+241') ? '0' + userNumero.slice(4) : userNumero
     lancerKyc(local)
@@ -1119,6 +1173,7 @@ export default function MobileCreateCagnotte() {
       let cancelled = false
       setKycStatut('en_cours')
       setKycMessage('')
+      setKycTitulaire(null)
       setNumeroRetraitFinal(null)
       verifierNumeroRetrait(v)
         .then(res => { if (!cancelled) appliquerResultatKyc(res, v) })
@@ -1126,14 +1181,16 @@ export default function MobileCreateCagnotte() {
           if (!cancelled) {
             setKycStatut('indisponible')
             setKycMessage("Vérification indisponible pour l'instant.")
+            setKycTitulaire(null)
           }
         })
       return () => { cancelled = true }
     } else {
       // Numéro incomplet → réinitialise le statut.
-      if (kycStatut !== 'idle') {
+      if (kycStatut !== 'idle' || kycTitulaire !== null) {
         setKycStatut('idle')
         setKycMessage('')
+        setKycTitulaire(null)
         setNumeroRetraitFinal(null)
       }
     }
@@ -1147,12 +1204,13 @@ export default function MobileCreateCagnotte() {
       .catch(() => {
         setKycStatut('indisponible')
         setKycMessage("Vérification indisponible pour l'instant.")
+        setKycTitulaire(null)
       })
   }
 
   // Applique le résultat KYC (opérateur + kyc_ok + message) et calcule le numéro E.164.
   const appliquerResultatKyc = (
-    res: { operateur: string; kyc_ok?: boolean; message?: string },
+    res: { operateur: string; kyc_ok?: boolean; titulaire?: string | null; message?: string },
     local9: string,
   ) => {
     const op = res.operateur
@@ -1166,6 +1224,7 @@ export default function MobileCreateCagnotte() {
     }
     setKycStatut(statut)
     setKycMessage(res.message ?? '')
+    setKycTitulaire(statut === 'ok' ? (res.titulaire ?? null) : null)
     // Airtel OK ou Moov accepté → numéro prêt en E.164.
     if (statut === 'ok' || statut === 'moov_warning') {
       setNumeroRetraitFinal('+241' + local9.slice(1))
@@ -1181,6 +1240,7 @@ export default function MobileCreateCagnotte() {
       setChoix('autre_numero')
       setKycStatut('idle')
       setKycMessage('')
+      setKycTitulaire(null)
       setNumeroRetraitFinal(null)
     }
   }
@@ -1330,7 +1390,7 @@ export default function MobileCreateCagnotte() {
           userNumero={userNumero}
           choix={choix} onChoix={onChoix}
           autreNumero={autreNumero} onAutreNumero={setAutreNumero}
-          kycStatut={kycStatut} kycMessage={kycMessage}
+          kycStatut={kycStatut} kycMessage={kycMessage} kycTitulaire={kycTitulaire}
         />
       </AnimItem>
     </>
