@@ -859,9 +859,17 @@ function exporterHistorique(c: CagnotteDetail) {
 // ── Historique unifié — miroir exact de _BlocHistoriqueUnifie ────────────────
 
 function BlocHistoriqueUnifie({ historique, sorties, onExporter }: { historique: Paiement[]; sorties: Reversement[]; onExporter?: () => void }) {
-  type Item = { key: string; nom: string; montant: number; date: string; estSortie: boolean }
+  type Item = {
+    key: string; nom: string; montant: number; date: string; estSortie: boolean
+    /**
+     * Commentaire du cotisant. Porté par les seules entrées : un reversement
+     * n'en a pas. Sans ce champ, la ligne d'affichage plus bas ne compilait
+     * pas, et le commentaire n'apparaissait jamais sur le web.
+     */
+    commentaire?: string | null
+  }
   const items: Item[] = [
-    ...historique.map(p => ({ key: `p-${p.id}`, nom: p.participantNom, montant: p.montant, date: p.date, estSortie: false })),
+    ...historique.map(p => ({ key: `p-${p.id}`, nom: p.participantNom, montant: p.montant, date: p.date, estSortie: false, commentaire: p.commentaire })),
     ...sorties.map(r  => ({ key: `r-${r.id}`, nom: `→ ${r.beneficiaireNom}`, montant: r.montant, date: r.date, estSortie: true })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 

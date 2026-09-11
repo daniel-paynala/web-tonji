@@ -159,9 +159,12 @@ export async function telechargerAfficheImage({ titre, reference }: AfficheCagno
   // — le débordement était déjà possible avant l'ajout de la consigne.
   const HAUT_MAX_CARTE = 150
   const BAS_UTILE = 248 // au-delà, la pastille et sa marge ne tiennent plus
+  // cardTop se calcule AVANT cardSize : la taille de la carte dépend de la
+  // place restante sous la consigne. L'ordre inverse levait un ReferenceError
+  // de zone morte temporelle, et l'affiche ne se générait pas du tout.
+  const cardTop = consigneY + 5
   const cardSize = Math.min(HAUT_MAX_CARTE, BAS_UTILE - cardTop)
   const cardX = (W - cardSize) / 2
-  const cardTop = consigneY + 5
   cheminArrondi(ctx, mm(cardX), mm(cardTop), mm(cardSize), mm(cardSize), mm(10))
   ctx.fillStyle = COL.white
   ctx.fill()

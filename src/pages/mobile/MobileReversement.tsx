@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { T } from '@/lib/tokens'
 import { reverser, type Participant } from '@/lib/cagnottesApi'
 import { fermerCagnotte } from '@/lib/reversementApi'
+import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire'
+import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Écran de reversement Mobile Money — miroir de reversement_screen.dart.
@@ -103,6 +105,10 @@ export default function MobileReversement() {
   const [phase, setPhase] = useState<Phase>('formulaire')
   const [erreur, setErreur] = useState('')
 
+  // Vérification du bénéficiaire : déclenchée quand l'utilisateur quitte le
+  // champ numéro pour saisir le montant.
+  const verif = useVerificationBeneficiaire(numero, selected !== null)
+
   // Fermeture : pré-remplir le montant total et le verrouiller (cf. initState Flutter).
   useEffect(() => {
     if (fermerApres) setMontant(String(args.montantDisponible))
@@ -118,6 +124,7 @@ export default function MobileReversement() {
     setSelected(p)
     setNumero('')
     setErreur('')
+    verif.reinitialiser()
   }
 
   /// Désélectionne le membre et revient à la saisie manuelle.
@@ -296,10 +303,16 @@ export default function MobileReversement() {
                   inputMode="numeric"
                   value={numero}
                   onChange={e => onNumeroChange(e.target.value)}
+                  // La vérification part quand l'utilisateur quitte le champ
+                  // pour saisir le montant : assez tôt pour qu'il corrige,
+                  // assez tard pour ne pas interroger l'opérateur à chaque frappe.
+                  onBlur={verif.verifier}
                   placeholder="0x xx xx xx xx"
                   style={{ flex: 1, minWidth: 0, background: T.surfaceEl, borderRadius: '16px', border: `1.5px solid ${T.border}`, padding: '0 16px', height: '56px', outline: 'none', fontSize: '16px', fontWeight: 500, color: T.textStrong, fontFamily: 'inherit' }}
                 />
               </div>
+              {/* Verdict sous le champ : il commente ce qui vient d'être saisi. */}
+              <VerdictNumeroBeneficiaire verdict={verif.verdict} titulaire={verif.titulaire} />
             </div>
           )}
 
@@ -389,11 +402,14 @@ export default function MobileReversement() {
           {/* Bouton confirmer */}
           <button
             onClick={soumettre}
-            disabled={enEnvoi}
+            // Grisé quand on SAIT que le numéro n'a pas de compte Airtel Money :
+            // le transfert échouerait chez l'opérateur, et un échec de
+            // décaissement laisse le solde décrémenté le temps de le compenser.
+            disabled={enEnvoi || verif.interdit}
             style={{
               width: '100%', height: '54px', borderRadius: '16px', border: 'none',
-              background: enEnvoi ? T.surfaceDeep : T.primary,
-              color: enEnvoi ? T.textTert : T.surfaceEl,
+              background: (enEnvoi || verif.interdit) ? T.surfaceDeep : T.primary,
+              color: (enEnvoi || verif.interdit) ? T.textTert : T.surfaceEl,
               fontSize: '16px', fontWeight: 700, fontFamily: 'inherit',
               cursor: enEnvoi ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',

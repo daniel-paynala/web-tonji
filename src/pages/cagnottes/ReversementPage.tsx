@@ -8,6 +8,8 @@ import { reverser, type Participant } from '@/lib/cagnottesApi'
 import { fermerCagnotte } from '@/lib/reversementApi'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire'
+import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ReversementPage (desktop) — pendant desktop de MobileReversement.
@@ -86,6 +88,9 @@ export default function ReversementPage() {
   const [montant, setMontant] = useState('')
   const [numero, setNumero] = useState('')
   const [selected, setSelected] = useState<Participant | null>(null)
+  // Vérification du bénéficiaire : déclenchée quand l'utilisateur quitte le
+  // champ numéro pour saisir le montant.
+  const verif = useVerificationBeneficiaire(numero, selected !== null)
   const [phase, setPhase] = useState<Phase>('formulaire')
   const [erreur, setErreur] = useState('')
 
@@ -97,7 +102,10 @@ export default function ReversementPage() {
     ? `${selected.prenom} ${selected.nom}`.trim()
     : `+241 ${numero.trim()}`
 
-  const selectionnerMembre = (p: Participant) => { setSelected(p); setNumero(''); setErreur('') }
+  const selectionnerMembre = (p: Participant) => {
+    setSelected(p); setNumero(''); setErreur('')
+    verif.reinitialiser()
+  }
   const deselectionner = () => setSelected(null)
   const onNumeroChange = (v: string) => {
     const digits = v.replace(/\D/g, '').slice(0, 9)
@@ -223,11 +231,17 @@ export default function ReversementPage() {
                   inputMode="numeric"
                   value={numero}
                   onChange={e => onNumeroChange(e.target.value)}
+                  // La vérification part quand l'utilisateur quitte le champ
+                  // pour saisir le montant : assez tôt pour qu'il corrige,
+                  // assez tard pour ne pas interroger l'opérateur à chaque frappe.
+                  onBlur={verif.verifier}
                   placeholder="0x xx xx xx xx"
                   className="flex-1 min-w-0 rounded-lg px-4 outline-none text-base font-medium"
                   style={{ background: T.surfaceEl, border: `1.5px solid ${T.border}`, height: '48px', color: T.textStrong, fontFamily: 'inherit' }}
                 />
               </div>
+              {/* Verdict sous le champ : il commente ce qui vient d'être saisi. */}
+              <VerdictNumeroBeneficiaire verdict={verif.verdict} titulaire={verif.titulaire} />
             </div>
           )}
 
@@ -305,7 +319,11 @@ export default function ReversementPage() {
           )}
 
           {/* Confirmer */}
-          <Button variant="primary" size="lg" className="w-full" loading={enEnvoi} onClick={soumettre}>
+          {/* Grisé quand on SAIT que le numéro n'a pas de compte Airtel Money :
+              le transfert échouerait chez l'opérateur, et un échec de
+              décaissement laisse le solde décrémenté le temps de le compenser. */}
+          <Button variant="primary" size="lg" className="w-full" loading={enEnvoi}
+                  disabled={verif.interdit} onClick={soumettre}>
             {!enEnvoi && <IconSend />}
             {enEnvoi ? 'Envoi…' : 'Confirmer le reversement'}
           </Button>
