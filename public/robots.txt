@@ -1,0 +1,10 @@
+# Portail marchand : hors des moteurs.
+#
+# Il affiche aujourd'hui des montants de démonstration, et restera ensuite une
+# zone privée accessible par code — rien n'y a vocation à être indexé, ni
+# maintenant ni après. Posé ici plutôt qu'en `meta robots` dans index.html :
+# cette page-là est celle de TOUTE la SPA, et le noindex aurait emporté
+# l'application cliente avec lui.
+User-agent: *
+Disallow: /marchand
+

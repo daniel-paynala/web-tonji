@@ -16,6 +16,7 @@ import {
   session, fermerSession, suivi, ErreurPortail,
   type Suivi, type Transaction,
 } from '@/lib/marchandApi'
+import BandeauDemo from './BandeauDemo'
 
 const P = {
   primary: '#0A6847', accent: '#E8A830', surface: '#F6F7F4', carte: '#FFFFFF',
@@ -96,6 +97,7 @@ export default function PortailSuivi() {
 
   return (
     <div style={{ minHeight: '100dvh', background: P.surface, paddingBottom: 40 }}>
+      <BandeauDemo />
       <header style={{
         background: P.carte, borderBottom: `1px solid ${P.brume}`,
         padding: '14px 16px',

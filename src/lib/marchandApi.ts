@@ -9,6 +9,20 @@
 
 const BASE = import.meta.env.VITE_API_URL ?? 'https://api.tonji.ga'
 
+/**
+ * Mode démonstration.
+ *
+ * Les écrans partent en production avant l'API : la production tourne sur
+ * `main`, où les routes `/api/marchand` n'existent pas encore. Le portail
+ * répond donc avec des données fabriquées, le temps de valider la forme.
+ *
+ * **Toute vue doit l'annoncer.** Un portail marchand qui affiche des montants
+ * fictifs sans le dire ferait croire à un commerçant qu'il a encaissé de
+ * l'argent qu'il n'a pas reçu — c'est pire que pas de portail du tout.
+ */
+export const MODE_DEMO = import.meta.env.VITE_PORTAIL_MOCK === '1'
+
+
 /** Clé de stockage propre au portail — jamais celle du client. */
 const CLE = 'tonji-marchand'
 
@@ -108,7 +122,56 @@ async function appel<T>(chemin: string, options: RequestInit = {}, avecJeton = f
  * doit donc pas prétendre savoir si le numéro est enregistré, sous peine de
  * défaire la protection posée côté serveur.
  */
+/** Latence simulée : sans elle, l'enchaînement est trop instantané pour être jugé. */
+const attendre = (ms = 450) => new Promise((r) => setTimeout(r, ms))
+
+/** Jeu de démonstration — montants et noms volontairement reconnaissables. */
+function suiviFictif(): Suivi {
+  const jours = (n: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - n)
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} à 1${n % 9}:2${n % 9}`
+  }
+  const lignes: Transaction[] = [
+    ['TM-DEMO00001', 150000, 'succes',   'Anniversaire Maman', 'DOVI AKON Daniel'],
+    ['TM-DEMO00002', 75000,  'succes',   'Mariage Nzeng',      'OBAME Sylvie'],
+    ['TM-DEMO00003', 25000,  'en_cours', 'Tontine du marché',  'MBA Jean'],
+    ['TM-DEMO00004', 40000,  'echec',    'Rentrée scolaire',   'NTOUTOUME Paul'],
+    ['TM-DEMO00005', 310000, 'succes',   'Baptême Ella',       'KOUMBA Rachelle'],
+  ].map(([reference, montant, statut, cagnotte, payeur], i) => ({
+    reference: reference as string,
+    trans_id: `DEMO${i}`,
+    montant: montant as number,
+    statut: statut as string,
+    date: jours(i * 2),
+    etablissement: 'TRAITEUR LE BARACHOIS',
+    cagnotte: cagnotte as string,
+    payeur: payeur as string,
+    recu_url: null,
+  }))
+
+  const encaisse = lignes.filter((l) => l.statut === 'succes').reduce((t, l) => t + l.montant, 0)
+  const aujourd = new Date().toISOString().slice(0, 10)
+
+  return {
+    periode: { depuis: aujourd, jusqua: aujourd },
+    totaux: {
+      encaisse,
+      nb_succes: lignes.filter((l) => l.statut === 'succes').length,
+      nb_echec: lignes.filter((l) => l.statut === 'echec').length,
+      nb_encours: lignes.filter((l) => l.statut === 'en_cours').length,
+    },
+    transactions: lignes,
+    pagination: { page: 1, pages: 1, total: lignes.length },
+  }
+}
+
 export async function demanderCode(numero: string): Promise<string> {
+  if (MODE_DEMO) {
+    await attendre()
+    return 'Démonstration : saisissez n\'importe quel code à 6 chiffres pour entrer.'
+  }
+
   const r = await appel<{ message: string }>('/api/marchand/otp', {
     method: 'POST',
     body: JSON.stringify({ numero }),
@@ -117,6 +180,18 @@ export async function demanderCode(numero: string): Promise<string> {
 }
 
 export async function ouvrirSession(numero: string, code: string): Promise<Session> {
+  if (MODE_DEMO) {
+    await attendre()
+    const s: Session = {
+      jeton: 'demo',
+      numero,
+      etablissements: [{ id: 'demo', nom: 'TRAITEUR LE BARACHOIS', code: 'BARACHOIS01', ville: 'Libreville' }],
+      expireA: Date.now() + 7200 * 1000,
+    }
+    sessionStorage.setItem(CLE, JSON.stringify(s))
+    return s
+  }
+
   const r = await appel<{
     jeton: string
     expire_dans: number
@@ -147,6 +222,11 @@ export async function suivi(params: {
   statut?: string
   page?: number
 }): Promise<Suivi> {
+  if (MODE_DEMO) {
+    await attendre()
+    return suiviFictif()
+  }
+
   const q = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== '' && v !== null) q.set(k, String(v))
