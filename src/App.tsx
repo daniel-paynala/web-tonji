@@ -57,6 +57,8 @@ import ParametresPage         from '@/pages/parametres/ParametresPage'
 import PaiementPage           from '@/pages/paiement/PaiementPage'
 
 // ── Pages accessibles sans compte (partagées) ─────────────────────────────────
+import PortailEntree from '@/pages/marchand/PortailEntree'
+import PortailSuivi from '@/pages/marchand/PortailSuivi'
 import InvitationPage from '@/pages/public/InvitationPage'
 
 // ── Layout & Guards (partagés) ────────────────────────────────────────────────
@@ -86,6 +88,12 @@ function MobileRoutes() {
       <Route path="/inscription" element={<MobileInscription />} />
       <Route path="/connexion"   element={<MobileConnexion />} />
       <Route path="/rejoindre/:token" element={<InvitationPage />} />
+
+      {/* Portail marchand — public, sans compte Tonji. Hors de tout layout
+          client : un commerçant qui ouvre ce lien n'est pas un cotisant, et
+          ne doit pas tomber sur la navigation de l'app. */}
+      <Route path="/marchand" element={<PortailEntree />} />
+      <Route path="/marchand/suivi" element={<PortailSuivi />} />
       {/* Écran de verrouillage (kiosque) — plein écran, hors AppLayout. */}
       <Route path="/lock" element={<MobileLockGate />} />
       {/* Alias /welcome (cible du logout côté MobileProfil) → connexion. */}
