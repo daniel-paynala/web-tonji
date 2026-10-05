@@ -91,7 +91,12 @@ function MobileRoutes() {
 
       {/* Portail marchand — public, sans compte Tonji. Hors de tout layout
           client : un commerçant qui ouvre ce lien n'est pas un cotisant, et
-          ne doit pas tomber sur la navigation de l'app. */}
+          ne doit pas tomber sur la navigation de l'app.
+
+          DÉCLARÉ DANS LES DEUX ARBRES, mobile et desktop. L'app choisit l'un
+          ou l'autre selon l'user-agent, et un commerçant consulte justement
+          son suivi depuis l'ordinateur de la boutique : absent du desktop, le
+          « * » l'envoyait sur /dashboard, donc sur la connexion. */}
       <Route path="/marchand" element={<PortailEntree />} />
       <Route path="/marchand/suivi" element={<PortailSuivi />} />
       {/* Écran de verrouillage (kiosque) — plein écran, hors AppLayout. */}
@@ -164,6 +169,12 @@ function DesktopRoutes() {
           <Route path="/parametres" element={<ParametresPage />} />
         </Route>
       </Route>
+
+      {/* Portail marchand — voir le commentaire dans MobileRoutes. Doit être
+          déclaré AVANT les attrape-tout ci-dessous, qui renvoient sur le
+          tableau de bord et donc sur la connexion. */}
+      <Route path="/marchand" element={<PortailEntree />} />
+      <Route path="/marchand/suivi" element={<PortailSuivi />} />
 
       {/* Redirect racine */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
