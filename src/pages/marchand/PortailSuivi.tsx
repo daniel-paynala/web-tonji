@@ -13,9 +13,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  session, fermerSession, suivi, ErreurPortail,
+  session, fermerSession, suivi, ErreurPortail, MODE_DEMO,
   type Suivi, type Transaction,
 } from '@/lib/marchandApi'
+import { toutesLesTransactions, versCsv, versPdf } from '@/lib/exportSuivi'
 import BandeauDemo from './BandeauDemo'
 
 const P = {
@@ -45,6 +46,7 @@ export default function PortailSuivi() {
   const [page, setPage] = useState(1)
   const [erreur, setErreur] = useState<string | null>(null)
   const [enCours, setEnCours] = useState(true)
+  const [exportEnCours, setExportEnCours] = useState<'csv' | 'pdf' | null>(null)
 
   const charger = useCallback(async () => {
     setEnCours(true)
@@ -69,30 +71,35 @@ export default function PortailSuivi() {
 
   if (!s) return null
 
-  function exporterCsv() {
-    if (!donnees) return
-    // CSV plutôt que xlsx : il s'ouvre dans Excel comme dans LibreOffice, ne
-    // demande aucune dépendance, et un tableur n'a pas besoin de mise en forme
-    // pour servir à un rapprochement. Le séparateur point-virgule est celui
-    // qu'attend un Excel en locale française.
-    const lignes = [
-      ['Reference', 'Date', 'Montant FCFA', 'Statut', 'Etablissement', 'Cagnotte', 'Payeur'],
-      ...donnees.transactions.map((t) => [
-        t.reference, t.date, String(t.montant),
-        STATUTS[t.statut]?.libelle ?? t.statut,
-        t.etablissement, t.cagnotte, t.payeur,
-      ]),
-    ]
-    const csv = lignes
-      .map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';'))
-      .join('\n')
-    // BOM UTF-8 : sans lui, Excel affiche « Rémi » en « RÃ©mi ».
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `tonji-suivi-${donnees.periode.depuis}-${donnees.periode.jusqua}.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
+  /**
+   * Exporte la PÉRIODE ENTIÈRE, pas la page affichée.
+   *
+   * L'API pagine à cinquante : un export limité à la page donnerait un total
+   * faux à qui rapproche son solde Airtel, sans rien pour s'en apercevoir.
+   */
+  async function exporter(format: 'csv' | 'pdf') {
+    if (exportEnCours) return
+    setExportEnCours(format)
+    setErreur(null)
+    try {
+      const { donnees: d, lignes, tronque } = await toutesLesTransactions({ statut, depuis, jusqua })
+      if (format === 'csv') {
+        versCsv(d, lignes)
+      } else {
+        await versPdf(d, lignes, {
+          numero: s!.numero,
+          etablissements: s!.etablissements.map((e) => e.nom).join(' · '),
+          demo: MODE_DEMO,
+        })
+      }
+      if (tronque) {
+        setErreur('Export limité aux 2 000 premières lignes. Resserrez la période pour tout obtenir.')
+      }
+    } catch (err) {
+      setErreur(err instanceof ErreurPortail ? err.message : 'Export impossible.')
+    } finally {
+      setExportEnCours(null)
+    }
   }
 
   return (
@@ -150,14 +157,15 @@ export default function PortailSuivi() {
               <option value="echec">Échoués</option>
             </select>
           </Filtre>
-          <button onClick={exporterCsv} disabled={!donnees?.transactions.length}
-            style={{
-              padding: '10px 14px', borderRadius: 11, fontWeight: 700, fontSize: 14,
-              border: `1.5px solid ${P.primary}`, background: 'none', color: P.primary,
-              cursor: donnees?.transactions.length ? 'pointer' : 'default',
-              opacity: donnees?.transactions.length ? 1 : 0.4,
-            }}>
-            Exporter (CSV)
+          <button onClick={() => exporter('pdf')}
+            disabled={!donnees?.transactions.length || exportEnCours !== null}
+            style={boutonExport(!donnees?.transactions.length || exportEnCours !== null)}>
+            {exportEnCours === 'pdf' ? 'Préparation…' : 'Exporter en PDF'}
+          </button>
+          <button onClick={() => exporter('csv')}
+            disabled={!donnees?.transactions.length || exportEnCours !== null}
+            style={boutonExport(!donnees?.transactions.length || exportEnCours !== null)}>
+            {exportEnCours === 'csv' ? 'Préparation…' : 'Exporter en CSV'}
           </button>
         </div>
 
@@ -233,6 +241,15 @@ function Filtre({ libelle, children }: { libelle: string; children: React.ReactN
 const champ: React.CSSProperties = {
   padding: '9px 11px', fontSize: 14, color: P.encre, background: P.carte,
   border: `1.5px solid ${P.brume}`, borderRadius: 11, outline: 'none',
+}
+
+function boutonExport(desactive: boolean): React.CSSProperties {
+  return {
+    padding: '10px 14px', borderRadius: 11, fontWeight: 700, fontSize: 14,
+    border: `1.5px solid ${P.primary}`, background: 'none', color: P.primary,
+    cursor: desactive ? 'default' : 'pointer',
+    opacity: desactive ? 0.4 : 1,
+  }
 }
 
 const pagination: React.CSSProperties = {
