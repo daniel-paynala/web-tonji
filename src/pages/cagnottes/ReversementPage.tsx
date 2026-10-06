@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { T, fmt } from '@/lib/tokens'
@@ -9,6 +9,9 @@ import { fermerCagnotte } from '@/lib/reversementApi'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire'
+import { useSortiesAutorisees } from '@/lib/sortiesApi'
+import { numeroFormate, resoudreMarchand, type Marchand } from '@/lib/marchandsCarnetApi'
+import { pourcent } from '@/lib/fraisApi'
 import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,23 +87,100 @@ export default function ReversementPage() {
   const args: ReversementArgs = location.state ?? { titre: 'Cagnotte', montantDisponible: 0 }
   const participants = args.participants ?? []
   const fermerApres = args.fermerApresReversement ?? false
+  // Une fermeture reverse le solde sur le numéro de retrait : ce n'est jamais
+  // un paiement de commerce, même ouvert depuis « Payer ».
+  const versMarchand = (args.versMarchand ?? false) && !fermerApres
 
   const [montant, setMontant] = useState('')
   const [numero, setNumero] = useState('')
   const [selected, setSelected] = useState<Participant | null>(null)
+  // Un numéro refusé par l'opérateur est EFFACÉ, comme dans l'app : laisser
+  // neuf chiffres faux à l'écran invite à les corriger un par un, alors que
+  // c'est le plus souvent le mauvais numéro qui a été dicté.
+  const surRefusNumero = useCallback(() => setNumero(''), [])
   // Vérification du bénéficiaire : déclenchée quand l'utilisateur quitte le
   // champ numéro pour saisir le montant.
-  const verif = useVerificationBeneficiaire(numero, selected !== null)
+  const verif = useVerificationBeneficiaire(numero, selected !== null, surRefusNumero)
   const [phase, setPhase] = useState<Phase>('formulaire')
   const [erreur, setErreur] = useState('')
+
+  // ── Destination marchande ───────────────────────────────────────────────────
+  const [saisieMarchand, setSaisieMarchand] = useState('')
+  const [marchand, setMarchand] = useState<Marchand | null>(null)
+  const [candidats, setCandidats] = useState<Marchand[]>([])
+  const [resolution, setResolution] = useState(false)
+  const [marchandIntrouvable, setMarchandIntrouvable] = useState<string | null>(null)
+
+  // Droits de sortie, relus à l'arrivée et avant de valider.
+  const { sorties, revalider } = useSortiesAutorisees(id)
 
   useEffect(() => {
     if (fermerApres) setMontant(String(args.montantDisponible))
   }, [fermerApres, args.montantDisponible])
 
-  const nomBeneficiaire = selected
-    ? `${selected.prenom} ${selected.nom}`.trim()
-    : `+241 ${numero.trim()}`
+  const nomBeneficiaire = versMarchand
+    ? (marchand?.nom ?? 'ce commerce')
+    : selected
+      ? `${selected.prenom} ${selected.nom}`.trim()
+      : `+241 ${numero.trim()}`
+
+  /**
+   * Vrai tant que la destination n'est pas établie : on n'envoie pas.
+   *
+   * Pour un commerce, aucune fiche retenue ; pour une personne, un compte
+   * Airtel Money non confirmé. Un membre pris dans la liste a son numéro connu
+   * du serveur, il n'y a rien à vérifier.
+   */
+  const envoiInterdit = versMarchand
+    ? marchand === null
+    : selected !== null ? false : verif.interdit
+
+  /** Libellé du bouton — il nomme le destinataire dès qu'il est connu. */
+  const libelleEnvoi = (() => {
+    if (versMarchand) {
+      // « Payer X » et non « Payer à X » : en français on paie quelqu'un.
+      const nom = marchand?.nom?.trim()
+      return nom ? `Payer ${nom}` : 'Payer'
+    }
+    const prenom = selected?.prenom?.trim() || verif.prenom
+    return prenom ? `Transférer à ${prenom}` : 'Transférer'
+  })()
+
+  /** Retient une fiche et aligne le champ dessus. */
+  const retenirMarchand = (m: Marchand) => {
+    setMarchand(m)
+    setSaisieMarchand(m.code ?? numeroFormate(m))
+    setCandidats([])
+    setMarchandIntrouvable(null)
+    // Les destinations s'excluent : une enseigne efface le membre et le numéro.
+    setSelected(null)
+    setNumero('')
+    setErreur('')
+  }
+
+  /** Résout la saisie : un code d'enseigne, ou le numéro du commerce. */
+  const resoudre = async () => {
+    const saisie = saisieMarchand.trim()
+    if (saisie === '') return
+    if (marchand && (marchand.code === saisie || numeroFormate(marchand) === saisie)) return
+
+    setResolution(true)
+    setMarchandIntrouvable(null)
+    try {
+      const trouves = await resoudreMarchand(saisie)
+      if (trouves.length === 0) {
+        setMarchand(null); setCandidats([]); setMarchandIntrouvable(saisie)
+      } else if (trouves.length === 1) {
+        retenirMarchand(trouves[0])
+      } else {
+        setMarchand(null); setCandidats(trouves)
+      }
+    } catch {
+      setMarchand(null); setCandidats([]); setMarchandIntrouvable(saisie)
+    } finally {
+      setResolution(false)
+    }
+  }
 
   const selectionnerMembre = (p: Participant) => {
     setSelected(p); setNumero(''); setErreur('')
@@ -124,7 +204,9 @@ export default function ReversementPage() {
   }
 
   const soumettre = async () => {
-    if (!selected) {
+    if (versMarchand) {
+      if (!marchand) { setErreur('Choisissez le commerce à payer.'); return }
+    } else if (!selected) {
       const errNum = validerNumero(numero)
       if (errNum) { setErreur(errNum); return }
     }
@@ -132,12 +214,23 @@ export default function ReversementPage() {
     if (isNaN(n) || n < 100) { setErreur('Montant minimum : 100 FCFA'); return }
     if (n > args.montantDisponible) { setErreur(`Solde insuffisant (max : ${fmt(args.montantDisponible)})`); return }
 
+    // Dernier contrôle du verrou — à l'arrivée, au clic du bouton d'entrée,
+    // et ici. Il a pu être posé pendant la saisie.
+    const frais = await revalider()
+    if (!(versMarchand ? frais.marchand : frais.transfert)) {
+      setErreur(versMarchand
+        ? "Le paiement d'un commerce est momentanément suspendu sur cette cagnotte."
+        : 'Le transfert est momentanément suspendu sur cette cagnotte.')
+      return
+    }
+
     setErreur('')
     setPhase('envoi')
     try {
       await reverser(id!, n, {
-        participantId: selected?.id,
-        numeroBeneficiaire: selected ? undefined : numero.trim(),
+        marchandId: versMarchand ? marchand?.id : undefined,
+        participantId: versMarchand ? undefined : selected?.id,
+        numeroBeneficiaire: versMarchand || selected ? undefined : numero.trim(),
       })
       if (fermerApres) await fermerCagnotte(id!)
       setPhase('succes')
@@ -159,8 +252,14 @@ export default function ReversementPage() {
           <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center" style={{ background: T.successSoft }}>
             <IconCheck />
           </div>
-          <p className="mt-6 text-xl font-bold" style={{ color: T.textStrong }}>Transfert effectué</p>
-          <p className="mt-2 text-sm" style={{ color: T.textSec }}>Le montant a été envoyé à {nomBeneficiaire}.</p>
+          <p className="mt-6 text-xl font-bold" style={{ color: T.textStrong }}>
+            {versMarchand ? 'Paiement effectué' : 'Transfert effectué'}
+          </p>
+          <p className="mt-2 text-sm" style={{ color: T.textSec }}>
+            {versMarchand
+              ? `Le montant a été réglé à ${nomBeneficiaire}.`
+              : `Le montant a été envoyé à ${nomBeneficiaire}.`}
+          </p>
           <Button
             variant="primary" size="lg" className="mt-8 w-full"
             onClick={() => fermerApres ? navigate('/', { replace: true }) : navigate(`/cagnottes/${id}`, { replace: true })}
@@ -176,9 +275,14 @@ export default function ReversementPage() {
   return (
     <Shell onBack={() => navigate(-1)} disabled={enEnvoi}>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }}>
-        <h1 className="font-display font-bold text-2xl tracking-tight" style={{ color: T.textStrong }}>Transfert</h1>
+        {/* Le service est scindé en amont : l'écran annonce lequel des deux. */}
+        <h1 className="font-display font-bold text-2xl tracking-tight" style={{ color: T.textStrong }}>
+          {versMarchand ? 'Payer un commerce' : 'Transférer'}
+        </h1>
         <p className="mt-1 text-sm" style={{ color: T.textSec }}>
-          Envoyez une partie de la cagnotte sur un numéro Mobile Money.
+          {versMarchand
+            ? "Réglez un commerce enregistré avec l'argent de la cagnotte."
+            : 'Envoyez une partie de la cagnotte sur un numéro Mobile Money.'}
         </p>
 
         <Card elevated className="mt-6 flex flex-col gap-5">
@@ -191,8 +295,74 @@ export default function ReversementPage() {
             </div>
           </div>
 
-          {/* Bénéficiaire */}
-          {selected ? (
+          {/* Destination — une enseigne OU une personne, jamais les deux à
+              l'écran : le choix est fait sur la page détail. */}
+          {versMarchand ? (
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textSec }}>
+                Code ou numéro du commerce
+              </label>
+              <input
+                value={saisieMarchand}
+                onChange={e => {
+                  setSaisieMarchand(e.target.value)
+                  // La saisie change → la fiche retenue devient caduque.
+                  if (marchand) setMarchand(null)
+                  setCandidats([]); setMarchandIntrouvable(null); setErreur('')
+                }}
+                onBlur={() => { void resoudre() }}
+                placeholder="ex : BARACHOIS01"
+                autoCapitalize="characters"
+                className="mt-1.5 w-full rounded-lg px-4 outline-none text-base font-semibold"
+                style={{ background: T.surfaceEl, border: `1.5px solid ${marchand ? T.primary : T.border}`, height: '48px', color: T.textStrong, fontFamily: 'inherit' }}
+              />
+
+              {resolution && (
+                <p className="text-xs mt-1.5" style={{ color: T.textTert }}>Recherche du commerce…</p>
+              )}
+
+              {/* Fiche retenue : le nom ET le numéro qui encaissera. */}
+              {marchand && !resolution && (
+                <div className="mt-2.5 flex items-center gap-2.5 rounded-xl px-3.5 py-3" style={{ background: 'rgba(10,104,71,0.07)', border: '1px solid rgba(10,104,71,0.22)' }}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate" style={{ color: T.textStrong }}>{marchand.nom}</p>
+                    <p className="text-xs" style={{ color: T.textSec }}>
+                      {numeroFormate(marchand)}{marchand.ville ? ` · ${marchand.ville}` : ''}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Plusieurs points de vente sur le même numéro : au client de
+                  désigner — le nom confirmé doit être celui qu'il a validé. */}
+              {candidats.length > 0 && !resolution && (
+                <div className="mt-2.5">
+                  <p className="text-xs font-semibold mb-1.5" style={{ color: T.textSec }}>
+                    Plusieurs commerces encaissent sur ce numéro — lequel payez-vous ?
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {candidats.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => retenirMarchand(m)}
+                        className="text-left rounded-xl px-3.5 py-3"
+                        style={{ background: T.surfaceEl, border: `1.2px solid ${T.border}`, cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        <p className="text-sm font-bold" style={{ color: T.textStrong }}>{m.nom}</p>
+                        {m.ville && <p className="text-xs" style={{ color: T.textSec }}>{m.ville}</p>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {marchandIntrouvable && !resolution && (
+                <p className="text-xs mt-1.5" style={{ color: T.error }}>
+                  Aucun commerce ne correspond à « {marchandIntrouvable} ». Vérifiez le code affiché à la caisse.
+                </p>
+              )}
+            </div>
+          ) : selected ? (
             <div className="flex items-center gap-3 rounded-xl px-3.5 py-2.5" style={{ background: 'rgba(232,168,48,0.08)', border: '1px solid rgba(232,168,48,0.40)' }}>
               <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(232,168,48,0.18)' }}>
                 <span className="text-[13px] font-extrabold" style={{ color: T.accent }}>{initiales(selected)}</span>
@@ -245,8 +415,9 @@ export default function ReversementPage() {
             </div>
           )}
 
-          {/* Chips membres */}
-          {participants.length > 0 && (
+          {/* Chips membres — masqués pour un paiement de commerce : un membre
+              n'est pas une destination possible dans ce service. */}
+          {!versMarchand && participants.length > 0 && (
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <IconPeople />
@@ -287,7 +458,9 @@ export default function ReversementPage() {
           {/* Montant */}
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textSec }}>
-              {fermerApres ? 'Montant total à transférer' : 'Montant à transférer'}
+              {fermerApres
+                ? 'Montant total à transférer'
+                : versMarchand ? 'Montant à payer' : 'Montant à transférer'}
             </label>
             <div
               className="mt-1.5 flex items-center gap-3 rounded-xl px-4 py-3.5"
@@ -308,6 +481,14 @@ export default function ReversementPage() {
             {fermerApres && (
               <p className="text-xs mt-1.5" style={{ color: T.textTert }}>Le solde intégral sera transféré avant fermeture.</p>
             )}
+            {/* Frais du commerce : la PART annoncée, jamais le détail du
+                calcul. C'est le taux résolu — négocié ou celui du projet — et
+                le client n'a pas à savoir lequel des deux il voit. */}
+            {versMarchand && marchand && marchand.frais > 0 && (
+              <p className="text-xs mt-1.5" style={{ color: T.textTert }}>
+                * Des frais de {pourcent(marchand.frais)} seront appliqués au moment du paiement.
+              </p>
+            )}
           </div>
 
           {/* Erreur */}
@@ -318,15 +499,24 @@ export default function ReversementPage() {
             </div>
           )}
 
-          {/* Confirmer */}
-          {/* Grisé quand on SAIT que le numéro n'a pas de compte Airtel Money :
-              le transfert échouerait chez l'opérateur, et un échec de
-              décaissement laisse le solde décrémenté le temps de le compenser. */}
+          {/* Bouton d'envoi — il NOMME le destinataire dès qu'il est connu.
+              Grisé tant que la destination n'est pas établie : compte Airtel
+              Money non confirmé, ou aucune enseigne retenue. */}
           <Button variant="primary" size="lg" className="w-full" loading={enEnvoi}
-                  disabled={verif.interdit} onClick={soumettre}>
+                  disabled={envoiInterdit} onClick={soumettre}>
             {!enEnvoi && <IconSend />}
-            {enEnvoi ? 'Envoi…' : 'Confirmer le transfert'}
+            {enEnvoi ? 'Envoi…' : libelleEnvoi}
           </Button>
+
+          {/* Dire POURQUOI la sortie est fermée : un bouton inerte sans
+              explication se lit comme une panne de l'application. */}
+          {(versMarchand ? !sorties.marchand : !sorties.transfert) && (
+            <p className="text-xs font-semibold" style={{ color: T.warning }}>
+              {versMarchand
+                ? "Le paiement d'un commerce est momentanément suspendu sur cette cagnotte."
+                : 'Le transfert est momentanément suspendu sur cette cagnotte.'}
+            </p>
+          )}
         </Card>
       </motion.div>
     </Shell>

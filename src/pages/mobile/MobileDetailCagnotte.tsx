@@ -24,6 +24,7 @@ import {
 import { ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import AuthBottomSheet from '@/components/auth/AuthBottomSheet'
+import { useSortiesAutorisees } from '@/lib/sortiesApi'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -370,6 +371,9 @@ const IconPlay = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
   </svg>
+)
+const IconStore = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9h16v11H4z"/><path d="M9 20v-6h6v6"/></svg>
 )
 const IconLock = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1424,6 +1428,43 @@ export default function MobileDetailCagnotte() {
 
   const montantDisponible = cagnotte.montantCollecte
   const monTotal = cagnotte.historique.reduce((s, p) => s + p.montant, 0)
+  // Inviter — masqué si la tontine est pleine/lancée ou la cagnotte clôturée.
+  const inviterVisible = isGerant && !(
+    (isTontine && cagnotte.nombreParticipants > 0 && (cagnotte.nombreInscrits + 1) >= cagnotte.nombreParticipants)
+    || estCloturee
+  )
+
+  // ── Droits de sortie d'argent ───────────────────────────────────────────────
+  //
+  // Relus à l'arrivée sur l'écran, puis AU CLIC avant d'ouvrir le formulaire.
+  // Un verrou posé pendant que l'écran était affiché serait sinon découvert à
+  // la validation, après la saisie du montant.
+  //
+  // PENDANT LE CHARGEMENT, LES BOUTONS GARDENT LEUR APPARENCE NORMALE : le
+  // repli est « ouvert ». Un repli fermé ferait clignoter l'écran — gris puis
+  // vert — à chaque entrée, alors que dans la quasi-totalité des cas rien
+  // n'est verrouillé. La sûreté ne vient pas du grisage, elle vient du
+  // contrôle refait au clic et du refus du serveur.
+  const { sorties, revalider } = useSortiesAutorisees(cagnotte.id)
+
+  /**
+   * Ouvre la sortie d'argent demandée, après avoir revérifié le verrou.
+   *
+   * Les deux boutons mènent au même écran : c'est `versMarchand` qui décide de
+   * quel service il s'agit. Le choix est fait ici, pas dans le formulaire.
+   */
+  const ouvrirSortie = async (versMarchand: boolean) => {
+    const frais = await revalider()
+    if (!(versMarchand ? frais.marchand : frais.transfert)) {
+      alert(versMarchand
+        ? "Le paiement d'un commerce est momentanément indisponible pour cette cagnotte."
+        : 'Le transfert est momentanément indisponible pour cette cagnotte.')
+      return
+    }
+    navigate(`/cagnottes/${cagnotte.id}/reverser`, {
+      state: { titre: cagnotte.titre, montantDisponible, participants: cagnotte.participants, versMarchand },
+    })
+  }
 
   const partagerLien = async () => {
     const lien = window.location.origin + '/rejoindre/' + cagnotte.id
@@ -1645,14 +1686,32 @@ export default function MobileDetailCagnotte() {
 
         {/* ── Boutons d'action ──────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-          {/* Action principale (équivalent FAB Flutter) : Cotiser / Payé ce tour / Ajouter */}
-          {peutCotiser && !aDejaPayeCycle && (
-            <button
-              onClick={() => handleAction('cotiser')}
-              style={{ width: '100%', height: '56px', borderRadius: '18px', border: 'none', cursor: 'pointer', background: T.accent, color: T.textStrong, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-            >
-              <IconCoin /> Cotiser
-            </button>
+          {/* Action principale : Cotiser, avec Inviter à côté.
+              Faire cotiser les autres est l'autre façon de faire MONTER le
+              montant : sa place est ici, pas dans la zone des sorties
+              d'argent. Miroir du hero de l'app (Cotiser + Inviter). */}
+          {((peutCotiser && !aDejaPayeCycle) || inviterVisible) && (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {peutCotiser && !aDejaPayeCycle && (
+                <button
+                  onClick={() => handleAction('cotiser')}
+                  style={{ flex: 1, minWidth: 0, height: '56px', borderRadius: '18px', border: 'none', cursor: 'pointer', background: T.accent, color: T.textStrong, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                >
+                  <IconCoin /> Cotiser
+                </button>
+              )}
+              {inviterVisible && (
+                /* Fond clair, encre dorée : le négatif de Cotiser. Les deux se
+                   distinguent par l'inversion plutôt que par deux teintes
+                   étrangères l'une à l'autre. */
+                <button
+                  onClick={partagerLien}
+                  style={{ flex: 1, minWidth: 0, height: '56px', borderRadius: '18px', border: `1.5px solid ${T.accent}`, cursor: 'pointer', background: T.surfaceEl, color: T.accent, fontSize: '16px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                >
+                  <IconShare /> Inviter
+                </button>
+              )}
+            </div>
           )}
           {peutCotiser && aDejaPayeCycle && (
             <div style={{ width: '100%', height: '52px', borderRadius: '16px', background: 'rgba(10,104,71,0.10)', border: `1px solid rgba(10,104,71,0.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: T.success, fontSize: '14px', fontWeight: 700 }}>
@@ -1677,53 +1736,75 @@ export default function MobileDetailCagnotte() {
           )}
 
           {/* ══ Actions gérant ══ */}
-          {/* Reverser / Inviter / Clôturer alignés sur une ligne à parts égales
-              (miroir Flutter _ActionsGerant : trois emplacements d'un tiers). */}
+          {/*
+            Trois blocs distincts, et non plus un trio indifférencié :
+
+            1. LES SORTIES D'ARGENT — « Transférer » (à une personne) et
+               « Payer » (un commerce) sur leur propre ligne. Ce sont les deux
+               seules actions qui font quitter l'argent de la cagnotte, et
+               elles se tiennent ensemble pour cette raison.
+            2. INVITER est remonté à côté de « Cotiser » : faire cotiser les
+               autres fait MONTER le montant, sa place n'est pas dans la zone
+               des sorties.
+            3. CLÔTURER / SUPPRIMER, qui ne déplacent pas d'argent.
+
+            Miroir du découpage appliqué dans l'app (_ActionsGerant).
+          */}
           {isGerant && (() => {
-            const inviterVisible = !(
-              (isTontine && cagnotte.nombreParticipants > 0 && (cagnotte.nombreInscrits + 1) >= cagnotte.nombreParticipants)
-              || estCloturee
-            )
-            const trio: React.ReactNode[] = []
-            // Reverser — cotisation ouverte, solde > 0
-            if (!isTontine && montantDisponible > 0) trio.push(
-              <button key="reverser"
-                onClick={() => navigate(`/cagnottes/${cagnotte.id}/reverser`, {
-                  state: { titre: cagnotte.titre, montantDisponible, participants: cagnotte.participants }
-                })}
-                style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.accent}`, color: T.accent, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
-              >
-                <IconDownload /> Transférer
-              </button>
-            )
-            // Inviter — masqué si tontine pleine/lancée ou cagnotte clôturée
-            if (inviterVisible) trio.push(
-              <button key="inviter"
-                onClick={partagerLien}
-                style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.primary}`, color: T.primary, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
-              >
-                <IconShare /> Inviter
-              </button>
-            )
-            // Clôturer — cotisation ouverte avec historique
-            if (peutFermer) trio.push(
-              <button key="cloturer"
-                onClick={lancerFermeture}
-                style={{ flex: 1, minWidth: 0, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.warning}`, color: T.warning, fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
-              >
-                <IconLock /> Clôturer
-              </button>
-            )
+            const sortiesVisibles = !isTontine && montantDisponible > 0
             return (
               <>
-                {trio.length > 0 && (
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {/* Toujours 3 emplacements : un bouton seul garde un tiers. */}
-                    {trio}
-                    {Array.from({ length: 3 - trio.length }).map((_, i) => (
-                      <div key={`vide-${i}`} style={{ flex: 1 }} />
-                    ))}
-                  </div>
+                {/* ── 1. Sorties d'argent ─────────────────────────────────── */}
+                {sortiesVisibles && (
+                  <>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {/* Transférer est l'action courante, présente en
+                          production ; Payer est derrière son drapeau. Plein
+                          contre contour dit cette hiérarchie — et distingue
+                          plus franchement que deux aplats côte à côte, qui se
+                          lisent comme deux options équivalentes et invitent
+                          justement à la confusion qu'on veut éviter. */}
+                      <button
+                        onClick={() => { void ouvrirSortie(false) }}
+                        disabled={!sorties.transfert}
+                        style={{ flex: 1, minWidth: 0, height: '48px', borderRadius: '12px', cursor: sorties.transfert ? 'pointer' : 'default', background: sorties.transfert ? T.accent : T.surfaceDeep, border: 'none', color: sorties.transfert ? T.textStrong : T.textTert, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
+                      >
+                        <IconDownload /> Transférer
+                      </button>
+                      {sorties.marchandActif && (
+                        <button
+                          onClick={() => { void ouvrirSortie(true) }}
+                          disabled={!sorties.marchand}
+                          style={{ flex: 1, minWidth: 0, height: '48px', borderRadius: '12px', cursor: sorties.marchand ? 'pointer' : 'default', background: 'transparent', border: `1.5px solid ${sorties.marchand ? T.accent : T.border}`, color: sorties.marchand ? T.accent : T.textTert, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 6px' }}
+                        >
+                          <IconStore /> Payer
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Dire POURQUOI un bouton est gris. Un bouton inerte sans
+                        explication se lit comme une panne de l'application, et
+                        l'utilisateur rappelle le support au lieu de comprendre. */}
+                    {(!sorties.transfert || (sorties.marchandActif && !sorties.marchand)) && (
+                      <p style={{ fontSize: '12px', fontWeight: 600, color: T.warning, lineHeight: 1.35 }}>
+                        {!sorties.transfert && sorties.marchandActif && !sorties.marchand
+                          ? "Les sorties d'argent sont momentanément suspendues sur cette cagnotte."
+                          : !sorties.transfert
+                            ? 'Le transfert est momentanément suspendu sur cette cagnotte.'
+                            : "Le paiement d'un commerce est momentanément suspendu."}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {/* ── 3. Clôturer — cotisation ouverte avec historique ────── */}
+                {peutFermer && (
+                  <button
+                    onClick={lancerFermeture}
+                    style={{ width: '100%', height: '48px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.warning}`, color: T.warning, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <IconLock /> Clôturer
+                  </button>
                 )}
 
                 {/* Supprimer — cagnotte vierge (aucune transaction) */}

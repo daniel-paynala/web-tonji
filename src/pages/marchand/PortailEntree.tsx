@@ -9,7 +9,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { demanderCode, ouvrirSession, ErreurPortail } from '@/lib/marchandApi'
-import BandeauDemo from './BandeauDemo'
 
 const P = {
   primary: '#0A6847',
@@ -69,7 +68,6 @@ export default function PortailEntree() {
 
   return (
     <div style={{ minHeight: '100dvh', background: P.surface }}>
-      <BandeauDemo />
       <div style={{ maxWidth: 420, margin: '0 auto', padding: '32px 16px' }}>
 
         <div style={{ textAlign: 'center', marginBottom: 24 }}>

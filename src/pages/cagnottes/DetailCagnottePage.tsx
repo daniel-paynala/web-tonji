@@ -11,6 +11,7 @@ import { chargerCagnotte, type CagnotteDetail, type Participant } from '@/lib/ca
 import { supprimerCagnotte, fermerCagnotte } from '@/lib/cagnotteActionsApi'
 import { urlRejoindre } from '@/lib/deeplink'
 import { ApiError } from '@/lib/api'
+import { useSortiesAutorisees } from '@/lib/sortiesApi'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DetailCagnottePage (desktop) — données RÉELLES via chargerCagnotte(id) (qui
@@ -56,6 +57,11 @@ export default function DetailCagnottePage() {
   const [actionBusy, setActionBusy] = useState(false)
   const [actionErr, setActionErr] = useState<string | null>(null)
 
+  // Droits de sortie d'argent, relus à l'arrivée sur la page. Appelé ici,
+  // AVANT les retours anticipés de chargement : un hook ne peut pas être
+  // conditionnel. Le repli est « ouvert » — voir `SORTIES_OUVERTES`.
+  const { sorties, revalider } = useSortiesAutorisees(id)
+
   const charger = useCallback(async () => {
     if (!id) return
     setChargement(true); setErreur(null)
@@ -96,6 +102,25 @@ export default function DetailCagnottePage() {
     : (c.montantCible && c.montantCible > 0 ? c.montantCollecte / c.montantCible : null)
   const pct = prog != null ? Math.min(100, Math.round(prog * 100)) : null
   const solde = c.montantCollecte - c.sorties.reduce((s, r) => s + (r.montant ?? 0), 0)
+
+  /**
+   * Ouvre la sortie d'argent demandée, après avoir revérifié le verrou.
+   *
+   * Les deux boutons mènent au même écran : c'est `versMarchand` qui décide de
+   * quel service il s'agit. Le choix est fait ici, pas dans le formulaire.
+   */
+  const ouvrirSortie = async (versMarchand: boolean) => {
+    const frais = await revalider()
+    if (!(versMarchand ? frais.marchand : frais.transfert)) {
+      setActionErr(versMarchand
+        ? "Le paiement d'un commerce est momentanément indisponible pour cette cagnotte."
+        : 'Le transfert est momentanément indisponible pour cette cagnotte.')
+      return
+    }
+    navigate(`/cagnottes/${c.id}/reverser`, {
+      state: { titre: c.titre, montantDisponible: solde, participants: c.participants, versMarchand },
+    })
+  }
 
   const payes = c.participants.filter(p => p.statutPaiement === 'paye')
   const attente = c.participants.filter(p => p.statutPaiement !== 'paye')
@@ -217,10 +242,39 @@ export default function DetailCagnottePage() {
             <Button variant="ghost" size="sm" onClick={() => navigate(`/cagnottes/${c.id}/participants`, { state: { titre: c.titre, nombreMax: c.nombreParticipants, nombreInscrits: c.nombreInscrits, type: typeArg } })}>
               <IconUserPlus /> Ajouter des membres
             </Button>
+            {/* Sorties d'argent — le service est scindé : « Transférer » va à
+                une personne, « Payer » règle un commerce. Le verrou est relu
+                AU CLIC : il a pu être posé pendant que la page était ouverte. */}
             {solde > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/cagnottes/${c.id}/reverser`, { state: { titre: c.titre, montantDisponible: solde, participants: c.participants } })}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!sorties.transfert}
+                onClick={() => { void ouvrirSortie(false) }}
+              >
                 Transférer
               </Button>
+            )}
+            {solde > 0 && sorties.marchandActif && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!sorties.marchand}
+                onClick={() => { void ouvrirSortie(true) }}
+              >
+                Payer un commerce
+              </Button>
+            )}
+            {solde > 0 && (!sorties.transfert || (sorties.marchandActif && !sorties.marchand)) && (
+              /* Dire POURQUOI un bouton est gris : un bouton inerte sans
+                 explication se lit comme une panne. */
+              <span className="text-xs font-semibold" style={{ color: T.warning }}>
+                {!sorties.transfert && sorties.marchandActif && !sorties.marchand
+                  ? "Sorties d'argent momentanément suspendues"
+                  : !sorties.transfert
+                    ? 'Transfert momentanément suspendu'
+                    : 'Paiement de commerce momentanément suspendu'}
+              </span>
             )}
           </>
         )}

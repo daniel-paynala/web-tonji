@@ -13,11 +13,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  session, fermerSession, suivi, ErreurPortail, MODE_DEMO,
+  session, fermerSession, suivi, ErreurPortail,
   type Suivi, type Transaction,
 } from '@/lib/marchandApi'
 import { toutesLesTransactions, versCsv, versPdf } from '@/lib/exportSuivi'
-import BandeauDemo from './BandeauDemo'
 
 const P = {
   primary: '#0A6847', accent: '#E8A830', surface: '#F6F7F4', carte: '#FFFFFF',
@@ -89,7 +88,6 @@ export default function PortailSuivi() {
         await versPdf(d, lignes, {
           numero: s!.numero,
           etablissements: s!.etablissements.map((e) => e.nom).join(' · '),
-          demo: MODE_DEMO,
         })
       }
       if (tronque) {
@@ -104,7 +102,6 @@ export default function PortailSuivi() {
 
   return (
     <div style={{ minHeight: '100dvh', background: P.surface, paddingBottom: 40 }}>
-      <BandeauDemo />
       <header style={{
         background: P.carte, borderBottom: `1px solid ${P.brume}`,
         padding: '14px 16px',

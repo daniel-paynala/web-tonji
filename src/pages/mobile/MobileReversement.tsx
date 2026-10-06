@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { T } from '@/lib/tokens'
 import { reverser, type Participant } from '@/lib/cagnottesApi'
 import { fermerCagnotte } from '@/lib/reversementApi'
 import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire'
 import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
+import { useSortiesAutorisees } from '@/lib/sortiesApi'
+import { numeroFormate, resoudreMarchand, type Marchand } from '@/lib/marchandsCarnetApi'
+import { pourcent } from '@/lib/fraisApi'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Écran de reversement Mobile Money — miroir de reversement_screen.dart.
-// Le gérant envoie tout ou partie du solde à un bénéficiaire (membre sélectionné
-// ou numéro saisi manuellement). Peut être appelé en mode « fermeture »
-// (reversement intégral + clôture de la cagnotte).
+// Écran de sortie d'argent — miroir de reversement_screen.dart.
+//
+// Le service est SCINDÉ : « Transférer » envoie à une personne, « Payer »
+// règle un commerce. Les deux mènent ici, et c'est `versMarchand` qui les
+// différencie — le choix est fait sur la page détail, pas au milieu du
+// formulaire. Il n'y a donc aucun sélecteur de destination dans la page.
+//
+// Peut aussi être appelé en mode « fermeture » (transfert intégral + clôture).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,6 +75,9 @@ const IconInfo = () => (
 const IconCheck = () => (
   <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={T.success} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
 )
+const IconStore = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9h16v11H4z"/><path d="M9 20v-6h6v6"/></svg>
+)
 const IconError = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.error} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
 )
@@ -83,6 +93,14 @@ export interface ReversementArgs {
   participants?: Participant[]
   /// Si true : reversement intégral + clôture de la cagnotte, puis retour accueil.
   fermerApresReversement?: boolean
+  /**
+   * Destination voulue à l'ouverture : un commerce plutôt qu'une personne.
+   *
+   * La page détail a deux boutons distincts — « Transférer » et « Payer » —
+   * qui mènent au même écran. C'est ce drapeau qui les différencie : le choix
+   * est fait avant d'arriver ici, pas au milieu du formulaire.
+   */
+  versMarchand?: boolean
 }
 
 /// Phases du flux (pas de phase « attente » — l'API retourne de façon synchrone).
@@ -95,6 +113,9 @@ export default function MobileReversement() {
   const args: ReversementArgs = location.state ?? { titre: 'Cagnotte', montantDisponible: 0 }
   const participants = args.participants ?? []
   const fermerApres = args.fermerApresReversement ?? false
+  // Une fermeture reverse le solde sur le numéro de retrait : ce n'est jamais
+  // un paiement de commerce, même si l'écran a été ouvert depuis « Payer ».
+  const versMarchand = (args.versMarchand ?? false) && !fermerApres
 
   // ── État local ──────────────────────────────────────────────────────────────
   const [montant, setMontant] = useState('')
@@ -105,9 +126,27 @@ export default function MobileReversement() {
   const [phase, setPhase] = useState<Phase>('formulaire')
   const [erreur, setErreur] = useState('')
 
-  // Vérification du bénéficiaire : déclenchée quand l'utilisateur quitte le
-  // champ numéro pour saisir le montant.
-  const verif = useVerificationBeneficiaire(numero, selected !== null)
+  // ── Destination marchande ───────────────────────────────────────────────────
+  // Saisie unique : le client tape le code affiché à la caisse ou le numéro du
+  // commerce. On ne devine pas lequel — le serveur cherche les deux pistes.
+  const [saisieMarchand, setSaisieMarchand] = useState('')
+  const [marchand, setMarchand] = useState<Marchand | null>(null)
+  // Plusieurs fiches peuvent répondre : une chaîne encaisse sur un seul numéro
+  // pour plusieurs points de vente. Le client désigne alors l'établissement.
+  const [candidats, setCandidats] = useState<Marchand[]>([])
+  const [resolution, setResolution] = useState(false)
+  const [marchandIntrouvable, setMarchandIntrouvable] = useState<string | null>(null)
+  // Récapitulatif nommé avant l'envoi — dernier filet.
+  const [confirmation, setConfirmation] = useState(false)
+
+  // Droits de sortie, relus à l'arrivée sur l'écran et avant de valider.
+  const { sorties, revalider } = useSortiesAutorisees(id)
+
+  // Un numéro refusé par l'opérateur est EFFACÉ, comme dans l'app : laisser
+  // neuf chiffres faux à l'écran invite à les corriger un par un, alors que
+  // c'est le plus souvent le mauvais numéro qui a été dicté.
+  const surRefusNumero = useCallback(() => setNumero(''), [])
+  const verif = useVerificationBeneficiaire(numero, selected !== null, surRefusNumero)
 
   // Fermeture : pré-remplir le montant total et le verrouiller (cf. initState Flutter).
   useEffect(() => {
@@ -115,9 +154,87 @@ export default function MobileReversement() {
   }, [fermerApres, args.montantDisponible])
 
   // Nom affiché à l'écran de succès.
-  const nomBeneficiaire = selected
-    ? `${selected.prenom} ${selected.nom}`.trim()
-    : `+241 ${numero.trim()}`
+  const nomBeneficiaire = versMarchand
+    ? (marchand?.nom ?? 'ce commerce')
+    : selected
+      ? `${selected.prenom} ${selected.nom}`.trim()
+      : `+241 ${numero.trim()}`
+
+  /**
+   * Vrai quand la vérification interdit d'aller plus loin.
+   *
+   * Règle de l'app : **tant que la destination n'est pas établie, on n'envoie
+   * pas.** Pour un commerce, c'est qu'aucune fiche n'est retenue — son numéro
+   * a déjà été vérifié à son enregistrement. Pour une personne, c'est que le
+   * compte Airtel Money n'est pas confirmé ; un membre pris dans les chips a
+   * son numéro connu du serveur, il n'y a rien à vérifier.
+   */
+  const envoiInterdit = versMarchand
+    ? marchand === null
+    : selected !== null
+      ? false
+      : verif.interdit
+
+  /**
+   * Libellé du bouton d'envoi — il nomme le destinataire dès qu'il est connu.
+   *
+   * Dernier filet avant l'envoi, et le même des deux côtés : on lit
+   * « Payer TRAITEUR LE BARACHOIS » ou « Transférer à Daniel » plutôt qu'un
+   * verbe seul. Tant que le destinataire n'est pas établi, le libellé reste
+   * générique — et le bouton est de toute façon grisé.
+   */
+  const libelleEnvoi = (() => {
+    if (versMarchand) {
+      // « Payer X » et non « Payer à X » : en français on paie quelqu'un.
+      const nom = marchand?.nom?.trim()
+      return nom ? `Payer ${nom}` : 'Payer'
+    }
+    const prenom = selected?.prenom?.trim() || verif.prenom
+    return prenom ? `Transférer à ${prenom}` : 'Transférer'
+  })()
+
+  /** Retient une fiche et aligne le champ dessus. */
+  const retenirMarchand = (m: Marchand) => {
+    setMarchand(m)
+    setSaisieMarchand(m.code ?? numeroFormate(m))
+    setCandidats([])
+    setMarchandIntrouvable(null)
+    // Les destinations s'excluent : une enseigne efface le membre et le
+    // numéro, sinon on ne saurait plus qui est payé.
+    setSelected(null)
+    setNumero('')
+    setErreur('')
+  }
+
+  /** Résout la saisie à la sortie du champ : un code, ou le numéro du commerce. */
+  const resoudre = async () => {
+    const saisie = saisieMarchand.trim()
+    if (saisie === '') return
+    // Déjà résolue à l'identique : un aller-retour de focus ne relance rien.
+    if (marchand && (marchand.code === saisie || numeroFormate(marchand) === saisie)) return
+
+    setResolution(true)
+    setMarchandIntrouvable(null)
+    try {
+      const trouves = await resoudreMarchand(saisie)
+      if (trouves.length === 0) {
+        setMarchand(null)
+        setCandidats([])
+        setMarchandIntrouvable(saisie)
+      } else if (trouves.length === 1) {
+        retenirMarchand(trouves[0])
+      } else {
+        setMarchand(null)
+        setCandidats(trouves)
+      }
+    } catch {
+      setMarchand(null)
+      setCandidats([])
+      setMarchandIntrouvable(saisie)
+    } finally {
+      setResolution(false)
+    }
+  }
 
   /// Sélectionne un membre comme bénéficiaire et vide la saisie manuelle.
   const selectionnerMembre = (p: Participant) => {
@@ -150,10 +267,16 @@ export default function MobileReversement() {
     setErreur('')
   }
 
-  /// Valide le formulaire puis appelle l'API de reversement (et fermer si mode fermeture).
-  const soumettre = async () => {
-    // Validation numéro (uniquement si pas de membre sélectionné).
-    if (!selected) {
+  /// Valide le formulaire, puis demande confirmation en nommant le destinataire.
+  ///
+  /// C'est ici que se prévient l'erreur de saisie, pas dans le libellé du
+  /// bouton : deux chiffres intervertis ne donnent pas une erreur, ils donnent
+  /// un AUTRE numéro valide, et l'argent part chez quelqu'un d'autre sans
+  /// retour possible.
+  const demanderConfirmation = async () => {
+    if (versMarchand) {
+      if (!marchand) { setErreur('Choisissez le commerce à payer.'); return }
+    } else if (!selected) {
       const errNum = validerNumero(numero)
       if (errNum) { setErreur(errNum); return }
     }
@@ -165,13 +288,34 @@ export default function MobileReversement() {
       return
     }
 
+    // Troisième et dernier contrôle du verrou — à l'arrivée sur l'écran, au
+    // clic du bouton d'entrée, et ici. Il a pu être posé pendant la saisie.
+    const frais = await revalider()
+    const permis = versMarchand ? frais.marchand : frais.transfert
+    if (!permis) {
+      setErreur(versMarchand
+        ? "Le paiement d'un commerce est momentanément suspendu sur cette cagnotte."
+        : 'Le transfert est momentanément suspendu sur cette cagnotte.')
+      return
+    }
+
+    setErreur('')
+    setConfirmation(true)
+  }
+
+  /// Exécute la sortie d'argent après confirmation explicite.
+  const soumettre = async () => {
+    setConfirmation(false)
+    const n = parseInt(montant.trim(), 10)
     setErreur('')
     setPhase('envoi')
     try {
-      // Envoie soit l'ID du membre, soit le numéro saisi manuellement (comme Flutter).
+      // Une seule des trois destinations part : l'enseigne, le membre, ou le
+      // numéro saisi (voir `reverser`).
       await reverser(id!, n, {
-        participantId: selected?.id,
-        numeroBeneficiaire: selected ? undefined : numero.trim(),
+        marchandId: versMarchand ? marchand?.id : undefined,
+        participantId: versMarchand ? undefined : selected?.id,
+        numeroBeneficiaire: versMarchand || selected ? undefined : numero.trim(),
       })
 
       // Mode fermeture : on clôture la cagnotte après le reversement intégral.
@@ -197,10 +341,12 @@ export default function MobileReversement() {
           <IconCheck />
         </div>
         <p style={{ fontSize: '22px', fontWeight: 700, color: T.textStrong, textAlign: 'center', marginBottom: '10px' }}>
-          Transfert effectué
+          {versMarchand ? 'Paiement effectué' : 'Transfert effectué'}
         </p>
         <p style={{ fontSize: '14px', color: T.textSec, textAlign: 'center', marginBottom: '32px' }}>
-          Le montant a été envoyé à {nomBeneficiaire}.
+          {versMarchand
+            ? `Le montant a été réglé à ${nomBeneficiaire}.`
+            : `Le montant a été envoyé à ${nomBeneficiaire}.`}
         </p>
         <button
           onClick={() => fermerApres ? navigate('/', { replace: true }) : navigate(`/cagnottes/${id}`, { replace: true })}
@@ -234,10 +380,14 @@ export default function MobileReversement() {
 
         <div style={{ padding: '20px 20px 32px' }}>
 
-          {/* Titre + sous-titre */}
-          <p style={{ fontSize: '26px', fontWeight: 800, color: T.textStrong, marginBottom: '4px' }}>Transfert</p>
+          {/* Titre + sous-titre — le service est scindé, l'écran le dit. */}
+          <p style={{ fontSize: '26px', fontWeight: 800, color: T.textStrong, marginBottom: '4px' }}>
+            {versMarchand ? 'Payer un commerce' : 'Transférer'}
+          </p>
           <p style={{ fontSize: '14px', color: T.textSec, marginBottom: '20px' }}>
-            Envoyez une partie de la cagnotte sur un numéro Mobile Money.
+            {versMarchand
+              ? 'Réglez un commerce enregistré avec l\'argent de la cagnotte.'
+              : 'Envoyez une partie de la cagnotte sur un numéro Mobile Money.'}
           </p>
 
           {/* Solde disponible */}
@@ -253,9 +403,31 @@ export default function MobileReversement() {
             </div>
           </div>
 
-          {/* ── Bénéficiaire ──────────────────────────────────────────────── */}
+          {/* ── Destination ──────────────────────────────────────────────────
+              Une enseigne OU une personne, jamais les deux à l'écran : le
+              service est scindé en amont, il n'y a pas de sélecteur ici. */}
 
-          {selected ? (
+          {versMarchand ? (
+            <ChampMarchand
+              saisie={saisieMarchand}
+              onSaisie={v => {
+                setSaisieMarchand(v)
+                // La saisie change → la fiche retenue devient caduque. Garder
+                // le nom d'avant sous un code en cours de correction produirait
+                // exactement la méprise qu'on veut empêcher.
+                if (marchand) setMarchand(null)
+                setCandidats([])
+                setMarchandIntrouvable(null)
+                setErreur('')
+              }}
+              onBlur={resoudre}
+              marchand={marchand}
+              candidats={candidats}
+              onChoisir={retenirMarchand}
+              enCours={resolution}
+              introuvable={marchandIntrouvable}
+            />
+          ) : selected ? (
             /* Carte « membre sélectionné » (= _CarteMembreSelectionne) */
             <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'rgba(232,168,48,0.08)', border: '1px solid rgba(232,168,48,0.40)', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(232,168,48,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -316,8 +488,10 @@ export default function MobileReversement() {
             </div>
           )}
 
-          {/* Liste des membres (chips horizontaux) si la cagnotte en a */}
-          {participants.length > 0 && (
+          {/* Liste des membres (chips horizontaux) si la cagnotte en a.
+              Masquée pour un paiement de commerce : un membre n'est pas une
+              destination possible dans ce service. */}
+          {!versMarchand && participants.length > 0 && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '16px', marginBottom: '8px' }}>
                 <IconPeople />
@@ -363,7 +537,9 @@ export default function MobileReversement() {
 
           {/* Montant — verrouillé en mode fermeture (reversement intégral obligatoire) */}
           <p style={{ fontSize: '12px', color: T.textSec, fontWeight: 600, marginBottom: '6px' }}>
-            {fermerApres ? 'Montant total à transférer (FCFA)' : 'Montant à transférer (FCFA)'}
+            {fermerApres
+              ? 'Montant total à transférer (FCFA)'
+              : versMarchand ? 'Montant à payer (FCFA)' : 'Montant à transférer (FCFA)'}
           </p>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '12px',
@@ -389,6 +565,15 @@ export default function MobileReversement() {
             </p>
           )}
 
+          {/* Frais du commerce : la PART annoncée, jamais le détail du calcul.
+              C'est le taux résolu — négocié pour cette enseigne, ou celui du
+              projet — et le client n'a pas à savoir lequel des deux il voit. */}
+          {versMarchand && marchand && marchand.frais > 0 && (
+            <p style={{ fontSize: '12px', color: T.textTert, marginTop: '6px' }}>
+              * Des frais de {pourcent(marchand.frais)} seront appliqués au moment du paiement.
+            </p>
+          )}
+
           {/* Bandeau d'erreur */}
           {erreur && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(217,79,61,0.08)', border: '1px solid rgba(217,79,61,0.30)', marginTop: '16px' }}>
@@ -399,19 +584,18 @@ export default function MobileReversement() {
 
           <div style={{ height: '28px' }} />
 
-          {/* Bouton confirmer */}
+          {/* Bouton d'envoi — il NOMME le destinataire dès qu'il est connu.
+              Grisé tant que la destination n'est pas établie : un compte
+              Airtel Money non confirmé ou aucune enseigne retenue. */}
           <button
-            onClick={soumettre}
-            // Grisé quand on SAIT que le numéro n'a pas de compte Airtel Money :
-            // le transfert échouerait chez l'opérateur, et un échec de
-            // décaissement laisse le solde décrémenté le temps de le compenser.
-            disabled={enEnvoi || verif.interdit}
+            onClick={() => { void demanderConfirmation() }}
+            disabled={enEnvoi || envoiInterdit}
             style={{
               width: '100%', height: '54px', borderRadius: '16px', border: 'none',
-              background: (enEnvoi || verif.interdit) ? T.surfaceDeep : T.primary,
-              color: (enEnvoi || verif.interdit) ? T.textTert : T.surfaceEl,
+              background: (enEnvoi || envoiInterdit) ? T.surfaceDeep : T.primary,
+              color: (enEnvoi || envoiInterdit) ? T.textTert : T.surfaceEl,
               fontSize: '16px', fontWeight: 700, fontFamily: 'inherit',
-              cursor: enEnvoi ? 'default' : 'pointer',
+              cursor: (enEnvoi || envoiInterdit) ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               transition: 'all 0.15s',
             }}
@@ -419,11 +603,155 @@ export default function MobileReversement() {
             {enEnvoi ? (
               <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2.4px solid rgba(255,255,255,0.4)', borderTopColor: T.surfaceEl, animation: 'spin 0.8s linear infinite' }} />
             ) : (
-              <><IconSend /> Confirmer le transfert</>
+              <>{versMarchand ? <IconStore /> : <IconSend />} {libelleEnvoi}</>
             )}
           </button>
+
+          {/* Dire POURQUOI la sortie est fermée. Un bouton inerte sans
+              explication se lit comme une panne, et l'utilisateur rappelle le
+              support au lieu de comprendre. */}
+          {(versMarchand ? !sorties.marchand : !sorties.transfert) && (
+            <p style={{ fontSize: '12px', fontWeight: 600, color: T.warning, marginTop: '10px', lineHeight: 1.35 }}>
+              {versMarchand
+                ? "Le paiement d'un commerce est momentanément suspendu sur cette cagnotte."
+                : 'Le transfert est momentanément suspendu sur cette cagnotte.'}
+            </p>
+          )}
         </div>
       </div>
+
+      {/* ── Récapitulatif nommé, avant tout envoi d'argent ──────────────────
+          Le destinataire est nommé en toutes lettres, avec le numéro qui
+          encaissera, avant que quoi que ce soit parte. */}
+      {confirmation && (
+        <div
+          onClick={() => setConfirmation(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,20,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: 60 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: T.surface, borderRadius: '20px', padding: '22px', width: '100%', maxWidth: '360px' }}
+          >
+            <p style={{ fontSize: '17px', fontWeight: 800, color: T.textStrong, marginBottom: '12px' }}>
+              {versMarchand ? 'Payer ce commerce ?' : 'Envoyer cet argent ?'}
+            </p>
+            <div style={{ fontSize: '14px', color: T.textSec, lineHeight: 1.7, marginBottom: '20px' }}>
+              <div>Montant : <strong style={{ color: T.textStrong }}>{formatMontant(parseInt(montant || '0', 10))}</strong></div>
+              <div>
+                {versMarchand ? 'Commerce : ' : 'Bénéficiaire : '}
+                <strong style={{ color: T.textStrong }}>{nomBeneficiaire}</strong>
+              </div>
+              <div style={{ fontSize: '13px', color: T.textTert }}>
+                {versMarchand
+                  ? (marchand ? numeroFormate(marchand) : '')
+                  : selected
+                    ? (selected.numeroRetraitMasque || selected.numeroMasque)
+                    : `+241 ${numero.trim()}`}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setConfirmation(false)}
+                style={{ flex: 1, height: '46px', borderRadius: '12px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${T.border}`, color: T.textSec, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => { void soumettre() }}
+                style={{ flex: 1, height: '46px', borderRadius: '12px', cursor: 'pointer', background: T.primary, border: 'none', color: T.surfaceEl, fontSize: '14px', fontWeight: 700, fontFamily: 'inherit' }}
+              >
+                {versMarchand ? 'Payer' : 'Transférer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
+  )
+}
+
+// ── Champ « commerce » ────────────────────────────────────────────────────────
+
+/**
+ * Saisie unique : le code affiché à la caisse, ou le numéro du commerce.
+ *
+ * On ne demande pas au client lequel des deux il tape — le serveur cherche les
+ * deux pistes. Quand plusieurs points de vente partagent un numéro, les fiches
+ * sont proposées et c'est lui qui désigne : le nom affiché sur le bouton doit
+ * être celui qu'il a validé.
+ */
+function ChampMarchand({
+  saisie, onSaisie, onBlur, marchand, candidats, onChoisir, enCours, introuvable,
+}: {
+  saisie: string
+  onSaisie: (v: string) => void
+  onBlur: () => void | Promise<void>
+  marchand: Marchand | null
+  candidats: Marchand[]
+  onChoisir: (m: Marchand) => void
+  enCours: boolean
+  introuvable: string | null
+}) {
+  return (
+    <div>
+      <p style={{ fontSize: '12px', color: T.textSec, fontWeight: 600, marginBottom: '6px' }}>
+        Code ou numéro du commerce
+      </p>
+      <input
+        value={saisie}
+        onChange={e => onSaisie(e.target.value)}
+        onBlur={() => { void onBlur() }}
+        placeholder="ex : BARACHOIS01"
+        autoCapitalize="characters"
+        style={{ width: '100%', background: T.surfaceEl, borderRadius: '16px', border: `1.5px solid ${marchand ? T.primary : T.border}`, padding: '0 16px', height: '56px', outline: 'none', fontSize: '16px', fontWeight: 600, color: T.textStrong, fontFamily: 'inherit' }}
+      />
+
+      {enCours && (
+        <p style={{ fontSize: '12px', color: T.textTert, marginTop: '6px' }}>Recherche du commerce…</p>
+      )}
+
+      {/* Fiche retenue : le nom ET le numéro qui encaissera. Le client doit
+          pouvoir lire les deux avant de valider. */}
+      {marchand && !enCours && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '12px 14px', borderRadius: '14px', background: 'rgba(10,104,71,0.07)', border: '1px solid rgba(10,104,71,0.22)' }}>
+          <IconStore />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '14px', fontWeight: 700, color: T.textStrong, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {marchand.nom}
+            </p>
+            <p style={{ fontSize: '12px', color: T.textSec }}>
+              {numeroFormate(marchand)}{marchand.ville ? ` · ${marchand.ville}` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Plusieurs points de vente sur le même numéro : au client de désigner. */}
+      {candidats.length > 0 && !enCours && (
+        <div style={{ marginTop: '10px' }}>
+          <p style={{ fontSize: '12px', color: T.textSec, fontWeight: 600, marginBottom: '6px' }}>
+            Plusieurs commerces encaissent sur ce numéro — lequel payez-vous ?
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {candidats.map(m => (
+              <button
+                key={m.id}
+                onClick={() => onChoisir(m)}
+                style={{ textAlign: 'left', padding: '12px 14px', borderRadius: '12px', cursor: 'pointer', background: T.surfaceEl, border: `1.2px solid ${T.border}`, fontFamily: 'inherit' }}
+              >
+                <p style={{ fontSize: '14px', fontWeight: 700, color: T.textStrong }}>{m.nom}</p>
+                {m.ville && <p style={{ fontSize: '12px', color: T.textSec }}>{m.ville}</p>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {introuvable && !enCours && (
+        <p style={{ fontSize: '12px', color: T.error, marginTop: '6px' }}>
+          Aucun commerce ne correspond à « {introuvable} ». Vérifiez le code affiché à la caisse.
+        </p>
+      )}
+    </div>
   )
 }

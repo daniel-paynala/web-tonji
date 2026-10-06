@@ -24,6 +24,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { T } from '@/lib/tokens'
 import { TONTINES_ACTIVES } from '@/lib/featureFlags'
 import { ApiError } from '@/lib/api'
+import {
+  useFraisConfig, tauxTransfert, cashApresRetrait, pourcent, bareme,
+  operateurLisible, fmtFcfa, type FraisConfig,
+} from '@/lib/fraisApi'
 import { useAuthStore } from '@/store/authStore'
 import {
   genererReference,
@@ -926,6 +930,98 @@ function LienRappelCGU({ accent, onOpen }: { accent: string; onOpen: () => void 
   )
 }
 
+/**
+ * Panneau « Ce que ça coûte » — miroir de `_PanneauFrais` (Flutter).
+ *
+ * Quatre faits et une simulation, tous construits depuis la config serveur :
+ * aucun taux n'est écrit ici. Sans config, le panneau ne s'affiche PAS plutôt
+ * que d'annoncer un chiffre inventé — annoncer des frais faux à qui fixe un
+ * objectif est pire que de ne rien annoncer.
+ *
+ * RÈGLE 4-bis : on montre la PART prélevée, jamais le détail du calcul
+ * (commission Paynala, frais opérateur de paiement et de retrait restent côté
+ * serveur). Le barème de retrait en espèces est explicitement attribué à
+ * l'opérateur, sinon le créateur nous imputerait un prélèvement qui ne nous
+ * revient pas.
+ */
+function PanneauFrais({
+  montant, estTontine, estAssociation, accent,
+}: {
+  /** Objectif saisi, ou null quand aucun n'est fixé — pas de simulation alors. */
+  montant: number | null
+  estTontine: boolean
+  estAssociation: boolean
+  accent: string
+}) {
+  const cfg: FraisConfig | null = useFraisConfig()
+  if (!cfg) return null
+
+  const taux = tauxTransfert(cfg, { estTontine, estAssociation })
+  const avecSimulation = montant != null && montant >= 100
+
+  const lignes = [
+    'Les cotisations sont sans frais.',
+    cfg.fraisMarchand > 0
+      ? `Payer un commerce depuis la cagnotte : ${pourcent(cfg.fraisMarchand)}.`
+      : 'Payer un commerce depuis la cagnotte : sans frais.',
+    taux > 0
+      ? `Transférer le solde vers un numéro : ${pourcent(taux)}.`
+      : 'Transférer le solde vers un numéro : sans frais.',
+    `Retirer l'argent en espèces : ${bareme(cfg)} (barème ${operateurLisible(cfg.operateur)}).`,
+  ]
+
+  return (
+    <div style={{ padding: '14px 16px 16px', background: T.surfaceEl, borderRadius: '16px', border: `1px solid ${T.border}` }}>
+      <p style={{ fontSize: '14px', fontWeight: 800, color: T.textStrong, marginBottom: '12px' }}>
+        <span style={{ color: accent }}>⬦ </span>Ce que ça coûte
+      </p>
+
+      {/* La simulation d'abord : c'est le chiffre que le créateur vient
+          chercher. Le détail des taux explique ce chiffre — il vient donc
+          APRÈS, pas avant. */}
+      {avecSimulation && (
+        <>
+          <p style={{ fontSize: '12px', fontWeight: 800, color: T.textSec, letterSpacing: '0.3px', marginBottom: '8px' }}>
+            Sur {fmtFcfa(montant!)} FCFA collectés
+          </p>
+          <LigneSimulation
+            libelle="Transfert vers un numéro"
+            montant={montant! - Math.round(montant! * taux)}
+          />
+          <LigneSimulation
+            libelle="Retrait en espèces"
+            montant={cashApresRetrait(cfg, montant!)}
+          />
+          <div style={{ height: '14px' }} />
+          <div style={{ height: '1px', background: T.border }} />
+          <div style={{ height: '12px' }} />
+        </>
+      )}
+
+      {/* Une seule et même puce pour toute la liste. J'avais d'abord mis deux
+          marqueurs — une coche verte pour le gratuit, un point pour le reste —
+          et c'était deux listes posées l'une sous l'autre. */}
+      {lignes.map(texte => (
+        <div key={texte} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '6px' }}>
+          <span style={{ fontSize: '12px', color: T.textSec, lineHeight: 1.4 }}>•</span>
+          <span style={{ width: '10px', flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: '12px', color: T.textSec, lineHeight: 1.4 }}>{texte}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Une ligne de simulation : libellé à gauche, montant net à droite. */
+function LigneSimulation({ libelle, montant }: { libelle: string; montant: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+      <span style={{ flex: 1, fontSize: '12px', color: T.textSec }}>{libelle}</span>
+      <span style={{ fontSize: '14px', fontWeight: 800, color: T.textStrong }}>{fmtFcfa(montant)} FCFA</span>
+    </div>
+  )
+}
+
 /** Bottom sheet CGU — résumé court en puces + blocs légaux détaillés. */
 function BottomSheetCgu({ onClose }: { onClose: () => void }) {
   // Résumé et détail produits par le serveur depuis la config opérateur : les
@@ -1586,6 +1682,19 @@ export default function MobileCreateCagnotte() {
             </AnimItem>
           </>
         )}
+
+        {/* Les frais sont annoncés que l'objectif soit fixé ou non : ce qui
+            change, c'est la simulation, qui n'apparaît qu'avec un montant. */}
+        <div style={{ height: '24px' }} />
+        <AnimItem delay={0.14}>
+          <PanneauFrais
+            montant={aObjectifMontant && montantCible.trim() ? parseInt(montantCible.replace(/\s/g, ''), 10) : null}
+            estTontine={estTontine}
+            estAssociation={estAssociation}
+            accent={accent}
+          />
+        </AnimItem>
+
         <div style={{ height: '48px' }} />
         <AnimItem delay={0.2}><BoutonSuivant onTap={etapeSuivante} accent={accent} /></AnimItem>
       </>
