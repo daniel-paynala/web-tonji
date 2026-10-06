@@ -6,8 +6,9 @@ import { fermerCagnotte } from '@/lib/reversementApi'
 import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire'
 import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
 import { useSortiesAutorisees } from '@/lib/sortiesApi'
+import { useFraisConfig, tauxTransfert, pourcent } from '@/lib/fraisApi'
+import { useAuthStore } from '@/store/authStore'
 import { numeroFormate, resoudreMarchand, type Marchand } from '@/lib/marchandsCarnetApi'
-import { pourcent } from '@/lib/fraisApi'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Écran de sortie d'argent — miroir de reversement_screen.dart.
@@ -138,6 +139,17 @@ export default function MobileReversement() {
   const [marchandIntrouvable, setMarchandIntrouvable] = useState<string | null>(null)
   // Récapitulatif nommé avant l'envoi — dernier filet.
   const [confirmation, setConfirmation] = useState(false)
+
+  // Taux prélevé sur un transfert vers un numéro, pour ce compte.
+  //
+  // Zéro tant que la configuration n'est pas chargée, ou si aucun taux n'est
+  // réglé : on n'annonce alors rien plutôt qu'un chiffre faux. Un transfert
+  // part toujours d'une cagnotte — le bouton n'existe pas sur une tontine.
+  const fraisCfg = useFraisConfig()
+  const estAssociation = useAuthStore(s => s.user?.typeCompte) === 'association'
+  const tauxTransfertActuel = fraisCfg
+    ? tauxTransfert(fraisCfg, { estTontine: false, estAssociation })
+    : 0
 
   // Droits de sortie, relus à l'arrivée sur l'écran et avant de valider.
   const { sorties, revalider } = useSortiesAutorisees(id)
@@ -568,7 +580,17 @@ export default function MobileReversement() {
           {/* Frais du commerce : la PART annoncée, jamais le détail du calcul.
               C'est le taux résolu — négocié pour cette enseigne, ou celui du
               projet — et le client n'a pas à savoir lequel des deux il voit. */}
-          {versMarchand && marchand && marchand.frais > 0 && (
+{/* Frais du TRANSFERT, annoncés avant l'envoi. Un paiement de commerce
+              annonçait sa part et un transfert ne disait rien : c'est pourtant
+              le transfert, le plus courant, qui laissait découvrir le
+              prélèvement après coup. Le taux vient de la configuration serveur,
+              la même que lisent l'app et le bot. */}
+          {!versMarchand && tauxTransfertActuel > 0 && (
+            <p style={{ fontSize: '12px', color: T.textTert, marginTop: '6px' }}>
+              * Des frais de {pourcent(tauxTransfertActuel)} seront appliqués au moment du transfert.
+            </p>
+          )}
+                    {versMarchand && marchand && marchand.frais > 0 && (
             <p style={{ fontSize: '12px', color: T.textTert, marginTop: '6px' }}>
               * Des frais de {pourcent(marchand.frais)} seront appliqués au moment du paiement.
             </p>

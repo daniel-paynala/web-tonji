@@ -105,9 +105,15 @@ async function appel<T>(chemin: string, options: RequestInit = {}, avecJeton = f
 /**
  * Demande un code.
  *
- * Le serveur répond la même chose que le numéro existe ou non : l'interface ne
- * doit donc pas prétendre savoir si le numéro est enregistré, sous peine de
- * défaire la protection posée côté serveur.
+ * Le serveur REFUSE désormais un numéro qui n'est pas marchand (404) et dit
+ * aussi quand la fiche existe mais n'a pas d'adresse de contact (503). Dans les
+ * deux cas `appel()` lève, l'écran affiche le message et **reste sur le
+ * numéro** — il n'avance plus vers un champ code où rien n'arriverait jamais.
+ *
+ * La réponse était neutre avant, pour que cette page ne devienne pas un
+ * annuaire des commerçants. Daniel a tranché le 2026-10-06 : laisser quelqu'un
+ * attendre un code qui ne viendra pas coûte plus que ce risque — un numéro
+ * marchand est un numéro commercial, affiché en vitrine.
  */
 export async function demanderCode(numero: string): Promise<string> {
   const r = await appel<{ message: string }>('/api/marchand/otp', {
