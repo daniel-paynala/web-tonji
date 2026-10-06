@@ -267,6 +267,22 @@ export default function ConnexionPage() {
                     Pas encore de compte ?{' '}
                     <Link to="/inscription" className="font-semibold" style={{ color: T.primary }}>Créer un compte</Link>
                   </p>
+
+                  {/* ── Espace marchand ──────────────────────────────────────
+                      Un commerçant qui arrive ici n'a PAS de compte Tonji et
+                      n'en aura pas : il encaisse, il ne cotise pas. Sans cette
+                      porte il resterait devant un écran de connexion qui ne le
+                      concerne pas.
+
+                      Déclaré dans les DEUX arbres de routes, mobile et
+                      desktop : l'oubli de l'un des deux avait déjà rendu le
+                      portail inaccessible une première fois. */}
+                  <p className="text-center text-xs mt-3" style={{ color: T.textTert }}>
+                    Vous êtes un commerce ?{' '}
+                    <Link to="/marchand" className="font-semibold" style={{ color: T.primary }}>
+                      Espace marchand
+                    </Link>
+                  </p>
                 </motion.div>
               )}
 

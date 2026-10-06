@@ -494,6 +494,32 @@ export default function MobileConnexion() {
                 </svg>
                 Créer un compte
               </button>
+
+              {/* ── Espace marchand ──────────────────────────────────────────
+                  Un commerçant qui arrive ici n'a PAS de compte Tonji et n'en
+                  aura pas : il encaisse, il ne cotise pas. Sans cette porte il
+                  resterait devant un écran de connexion qui ne le concerne
+                  pas, ou devrait connaître l'adresse /marchand par cœur.
+
+                  Discret à dessein : la très grande majorité des visiteurs
+                  sont des cotisants, et ce lien ne doit pas leur disputer
+                  l'attention. */}
+              <button
+                onClick={() => navigate('/marchand')}
+                style={{
+                  marginTop: '18px', width: '100%', background: 'none', border: 'none',
+                  cursor: 'pointer', fontFamily: 'inherit', padding: '8px 0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textTert} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l1.5-5h15L21 9" /><path d="M4 9h16v11H4z" /><path d="M9 20v-6h6v6" />
+                </svg>
+                <span style={{ fontSize: '13px', color: T.textTert }}>
+                  Vous êtes un commerce ?{' '}
+                  <span style={{ color: T.primary, fontWeight: 700 }}>Espace marchand</span>
+                </span>
+              </button>
             </motion.div>
           </motion.div>
 
