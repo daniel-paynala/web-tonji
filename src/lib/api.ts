@@ -39,6 +39,22 @@ async function request<T>(
     const data = await res.json().catch(() => ({}))
 
     if (!res.ok) {
+      // Trop de demandes : Laravel répond « Too Many Attempts. », en anglais et
+      // sans dire combien de temps attendre. Sur une demande de code SMS,
+      // l'utilisateur en conclut que rien ne marche et recommence — ce qui
+      // repousse d'autant la fin du blocage. L'en-tête `Retry-After` porte le
+      // délai : autant le dire.
+      if (res.status === 429) {
+        const secondes = Number(res.headers.get('Retry-After') ?? 0)
+        const minutes = Math.ceil(secondes / 60)
+        throw new ApiError(
+          429,
+          secondes > 0
+            ? `Trop de demandes de code. Réessayez dans ${minutes} minute${minutes > 1 ? 's' : ''}.`
+            : 'Trop de demandes de code. Patientez quelques minutes avant de réessayer.',
+        )
+      }
+
       // Laravel renvoie les erreurs dans `message` ou `errors`
       const msg =
         (data as { message?: string }).message ||
