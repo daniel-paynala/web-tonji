@@ -13,3 +13,13 @@ export const TONTINES_ACTIVES = false;
  * du parcours de création est retirée tant que ce flag est `false`.
  */
 export const CAGNOTTES_PUBLIQUES_ACTIVES = false;
+
+/**
+ * « Payer un commerce » — le gérant envoie le solde d'une collecte chez un
+ * marchand enregistré plutôt qu'à une personne.
+ *
+ * Pendant de `tondo.paiement_marchand_actif` (backend) et
+ * `kPaiementMarchandActif` (Flutter) : les trois canaux doivent TOUJOURS porter
+ * la même valeur, et `tonji:audit` le vérifie.
+ */
+export const PAIEMENT_MARCHAND_ACTIF = false;

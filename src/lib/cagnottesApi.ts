@@ -523,11 +523,15 @@ export async function verifierStatutCotisation(transId: string): Promise<string>
 export async function reverser(
   cagnotteId: string,
   montant: number,
-  opts: { participantId?: string; numeroBeneficiaire?: string },
+  opts: { participantId?: string; numeroBeneficiaire?: string; marchandId?: string },
 ): Promise<void> {
   const body: Record<string, unknown> = { cagnotte_reference: cagnotteId, montant }
-  if (opts.participantId) body.participant_id = opts.participantId
-  if (opts.numeroBeneficiaire) body.numero_beneficiaire = opts.numeroBeneficiaire
+  // Les trois destinations s'excluent, et le serveur refuse une requête qui
+  // n'en porte aucune. L'enseigne passe en premier : quand elle est choisie,
+  // c'est le numéro de SA fiche qui encaisse, jamais un numéro saisi.
+  if (opts.marchandId) body.marchand_id = opts.marchandId
+  else if (opts.participantId) body.participant_id = opts.participantId
+  else if (opts.numeroBeneficiaire) body.numero_beneficiaire = opts.numeroBeneficiaire
   await api.post('/api/mobile/reversements', body)
 }
 
