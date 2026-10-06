@@ -25,7 +25,6 @@ import { ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import AuthBottomSheet from '@/components/auth/AuthBottomSheet'
 import { useSortiesAutorisees } from '@/lib/sortiesApi'
-import { PAIEMENT_MARCHAND_ACTIF } from '@/lib/featureFlags'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1772,7 +1771,7 @@ export default function MobileDetailCagnotte() {
                       >
                         <IconDownload /> Transférer
                       </button>
-                      {PAIEMENT_MARCHAND_ACTIF && (
+                      {sorties.marchandActif && (
                         <button
                           onClick={() => { void ouvrirSortie(true) }}
                           disabled={!sorties.marchand}
@@ -1786,9 +1785,9 @@ export default function MobileDetailCagnotte() {
                     {/* Dire POURQUOI un bouton est gris. Un bouton inerte sans
                         explication se lit comme une panne de l'application, et
                         l'utilisateur rappelle le support au lieu de comprendre. */}
-                    {(!sorties.transfert || (PAIEMENT_MARCHAND_ACTIF && !sorties.marchand)) && (
+                    {(!sorties.transfert || (sorties.marchandActif && !sorties.marchand)) && (
                       <p style={{ fontSize: '12px', fontWeight: 600, color: T.warning, lineHeight: 1.35 }}>
-                        {!sorties.transfert && !sorties.marchand
+                        {!sorties.transfert && sorties.marchandActif && !sorties.marchand
                           ? "Les sorties d'argent sont momentanément suspendues sur cette cagnotte."
                           : !sorties.transfert
                             ? 'Le transfert est momentanément suspendu sur cette cagnotte.'

@@ -12,7 +12,6 @@ import { supprimerCagnotte, fermerCagnotte } from '@/lib/cagnotteActionsApi'
 import { urlRejoindre } from '@/lib/deeplink'
 import { ApiError } from '@/lib/api'
 import { useSortiesAutorisees } from '@/lib/sortiesApi'
-import { PAIEMENT_MARCHAND_ACTIF } from '@/lib/featureFlags'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DetailCagnottePage (desktop) — données RÉELLES via chargerCagnotte(id) (qui
@@ -256,7 +255,7 @@ export default function DetailCagnottePage() {
                 Transférer
               </Button>
             )}
-            {solde > 0 && PAIEMENT_MARCHAND_ACTIF && (
+            {solde > 0 && sorties.marchandActif && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -266,11 +265,11 @@ export default function DetailCagnottePage() {
                 Payer un commerce
               </Button>
             )}
-            {solde > 0 && (!sorties.transfert || (PAIEMENT_MARCHAND_ACTIF && !sorties.marchand)) && (
+            {solde > 0 && (!sorties.transfert || (sorties.marchandActif && !sorties.marchand)) && (
               /* Dire POURQUOI un bouton est gris : un bouton inerte sans
                  explication se lit comme une panne. */
               <span className="text-xs font-semibold" style={{ color: T.warning }}>
-                {!sorties.transfert && !sorties.marchand
+                {!sorties.transfert && sorties.marchandActif && !sorties.marchand
                   ? "Sorties d'argent momentanément suspendues"
                   : !sorties.transfert
                     ? 'Transfert momentanément suspendu'

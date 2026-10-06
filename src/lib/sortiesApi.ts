@@ -13,6 +13,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export interface SortiesAutorisees {
   transfert: boolean
   marchand: boolean
+  /**
+   * Le SERVICE « payer un commerce » est-il ouvert pour ce type de compte ?
+   *
+   * Distinct de `marchand`, qui dit si CETTE collecte l'autorise. La différence
+   * pilote deux rendus qu'il ne faut pas confondre :
+   *
+   *   - service fermé → le bouton n'est pas CONSTRUIT. Ce n'est pas
+   *     « momentanément suspendu », ça n'existe pas encore.
+   *   - service ouvert, collecte verrouillée → bouton grisé, avec la raison.
+   *
+   * C'est ce qui remplace l'ancien drapeau de compilation : l'interrupteur du
+   * dashboard ferme le service partout, sans redéploiement du web.
+   */
+  marchandActif: boolean
 }
 
 /**
@@ -26,15 +40,26 @@ export interface SortiesAutorisees {
  * qui refuse. Au pire, l'utilisateur touche un bouton qui lui répond aussitôt
  * que la sortie est suspendue — sans avoir rien saisi.
  */
-export const SORTIES_OUVERTES: SortiesAutorisees = { transfert: true, marchand: true }
+export const SORTIES_OUVERTES: SortiesAutorisees = {
+  transfert: true,
+  marchand: true,
+  // Supposer le service ouvert pendant le chargement, comme le reste : si le
+  // dashboard l'a fermé, la réponse arrive et le bouton disparaît. L'inverse
+  // le ferait apparaître après coup, ce qui se remarque bien davantage.
+  marchandActif: true,
+}
 
 export async function lireSorties(reference: string): Promise<SortiesAutorisees> {
-  const r = await api.get<Partial<SortiesAutorisees>>(
+  const r = await api.get<{ transfert?: boolean; marchand?: boolean; marchand_actif?: boolean }>(
     `/api/mobile/cagnottes/${reference}/sorties`,
   )
   return {
     transfert: r?.transfert === true,
     marchand: r?.marchand === true,
+    // Absent d'un serveur plus ancien : on se rabat sur le verrou effectif
+    // plutôt que de fermer le service, sinon un web à jour devant un serveur
+    // en retard n'afficherait plus jamais le bouton.
+    marchandActif: r?.marchand_actif ?? r?.marchand === true,
   }
 }
 

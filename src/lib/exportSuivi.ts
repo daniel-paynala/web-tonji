@@ -80,7 +80,7 @@ export function versCsv(donnees: Suivi, lignes: Transaction[]): void {
 export async function versPdf(
   donnees: Suivi,
   lignes: Transaction[],
-  entete: { numero: string; etablissements: string; demo: boolean },
+  entete: { numero: string; etablissements: string },
 ): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
@@ -99,14 +99,6 @@ export async function versPdf(
   doc.text(entete.etablissements || entete.numero, M, y); y += 4.5
   doc.text(`Période du ${donnees.periode.depuis} au ${donnees.periode.jusqua}`, M, y); y += 4.5
   doc.text(`Édité le ${new Date().toLocaleString('fr-FR')}`, M, y); y += 6
-
-  if (entete.demo) {
-    // Un relevé imprimé circule sans son contexte : s'il est fictif, il doit
-    // le dire sur le papier, pas seulement à l'écran.
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(160, 68, 52)
-    doc.text('DÉMONSTRATION — montants fictifs, sans valeur', M, y); y += 6
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(74, 85, 104)
-  }
 
   trait()
 
