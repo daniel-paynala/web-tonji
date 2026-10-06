@@ -7,6 +7,7 @@ import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire
 import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
 import { useSortiesAutorisees } from '@/lib/sortiesApi'
 import { numeroFormate, resoudreMarchand, type Marchand } from '@/lib/marchandsCarnetApi'
+import { pourcent } from '@/lib/fraisApi'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Écran de sortie d'argent — miroir de reversement_screen.dart.
@@ -569,7 +570,7 @@ export default function MobileReversement() {
               projet — et le client n'a pas à savoir lequel des deux il voit. */}
           {versMarchand && marchand && marchand.frais > 0 && (
             <p style={{ fontSize: '12px', color: T.textTert, marginTop: '6px' }}>
-              * Des frais de {String(marchand.frais).replace('.', ',')} % seront appliqués au moment du paiement.
+              * Des frais de {pourcent(marchand.frais)} seront appliqués au moment du paiement.
             </p>
           )}
 

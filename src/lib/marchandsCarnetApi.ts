@@ -19,9 +19,12 @@ export interface Marchand {
   /** Code affiché à la caisse — ce que le client tape le plus souvent. */
   code: string | null
   /**
-   * Taux RÉSOLU, en pourcentage : celui de la fiche s'il en porte un, sinon
-   * celui du projet. Le client n'a pas à savoir qu'il existe des taux
-   * négociés — il voit ce qui sera prélevé pour CE commerce.
+   * Taux RÉSOLU, en **DÉCIMAL** : `0.03` vaut 3 %. Celui de la fiche s'il en
+   * porte un, sinon celui du projet — le client n'a pas à savoir qu'il existe
+   * des taux négociés, il voit ce qui sera prélevé pour CE commerce.
+   *
+   * ⚠️ À afficher avec `pourcent()` de `fraisApi`. L'oubli de la conversion ne
+   * casse rien : il annonce « 0,03 % » à qui sera prélevé de 3 %.
    */
   frais: number
   /** Numéro qui encaisse : le client doit pouvoir le lire avant de valider. */

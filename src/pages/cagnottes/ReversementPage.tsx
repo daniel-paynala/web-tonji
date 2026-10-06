@@ -11,6 +11,7 @@ import Button from '@/components/ui/Button'
 import { useVerificationBeneficiaire } from '@/hooks/useVerificationBeneficiaire'
 import { useSortiesAutorisees } from '@/lib/sortiesApi'
 import { numeroFormate, resoudreMarchand, type Marchand } from '@/lib/marchandsCarnetApi'
+import { pourcent } from '@/lib/fraisApi'
 import { VerdictNumeroBeneficiaire } from '@/components/ui/VerdictNumeroBeneficiaire'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -485,7 +486,7 @@ export default function ReversementPage() {
                 le client n'a pas à savoir lequel des deux il voit. */}
             {versMarchand && marchand && marchand.frais > 0 && (
               <p className="text-xs mt-1.5" style={{ color: T.textTert }}>
-                * Des frais de {String(marchand.frais).replace('.', ',')} % seront appliqués au moment du paiement.
+                * Des frais de {pourcent(marchand.frais)} seront appliqués au moment du paiement.
               </p>
             )}
           </div>
