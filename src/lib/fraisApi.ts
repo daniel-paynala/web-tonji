@@ -133,21 +133,12 @@ export function fraisReversement(
 }
 
 /**
- * Frais totaux pour sortir `montant` en espèces.
+ * Frais que l'opérateur prélève pour un retrait en espèces de `montant`.
  *
- * Sortir en espèces, c'est reverser PUIS retirer : les deux prélèvements
- * s'additionnent. Les présenter séparément laisserait croire que le retrait est
- * l'option la moins chère, alors qu'il porte les deux.
+ * **Le barème de l'opérateur, et lui seul.** Le prélèvement du reversement ne
+ * s'y ajoute pas : Daniel l'a tranché le 2026-10-08, contre l'illustration
+ * « reversement puis retrait » du document remis à Airtel.
  */
-export function fraisEspeces(
-  cfg: FraisConfig,
-  montant: number,
-  opts: { estTontine: boolean; estAssociation: boolean },
-): number {
-  return fraisReversement(cfg, montant, opts) + fraisRetraitEspeces(cfg, montant)
-}
-
-/** Frais que l'opérateur prélève pour un retrait en espèces de `montant`. */
 export function fraisRetraitEspeces(cfg: FraisConfig, montant: number): number {
   for (const t of cfg.tranches) {
     const minOk = t.montantMin === null || montant >= t.montantMin

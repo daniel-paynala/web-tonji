@@ -25,7 +25,7 @@ import { T } from '@/lib/tokens'
 import { TONTINES_ACTIVES } from '@/lib/featureFlags'
 import { ApiError } from '@/lib/api'
 import {
-  useFraisConfig, fraisReversement, fraisEspeces, fmtFcfa, type FraisConfig,
+  useFraisConfig, fraisReversement, fraisRetraitEspeces, fmtFcfa, type FraisConfig,
 } from '@/lib/fraisApi'
 import { useAuthStore } from '@/store/authStore'
 import {
@@ -943,9 +943,15 @@ function LienRappelCGU({ accent, onOpen }: { accent: string; onOpen: () => void 
  * d'utilisation, qui sont un texte contractuel et non l'UI de paiement.
  */
 function PanneauFrais({
-  montant, estTontine, estAssociation, accent,
+  avecObjectif, montant, estTontine, estAssociation, accent,
 }: {
-  /** Objectif saisi, ou null quand aucun n'est fixé — pas de simulation alors. */
+  /**
+   * L'interrupteur est-il sur « Oui » ? Distinct de `montant` : dès le Oui, le
+   * tableau s'affiche — à zéro tant que rien n'est tapé. Le créateur voit ce
+   * que la saisie va lui apprendre, au lieu de taper dans le vide.
+   */
+  avecObjectif: boolean
+  /** Objectif saisi, ou null tant que le champ est vide. */
   montant: number | null
   estTontine: boolean
   estAssociation: boolean
@@ -954,7 +960,10 @@ function PanneauFrais({
   const cfg: FraisConfig | null = useFraisConfig()
   if (!cfg) return null
 
-  const avecSimulation = montant != null && montant >= 100
+  // Zéro plutôt que rien : le tableau garde sa place et ses libellés, seuls les
+  // montants attendent la saisie.
+  const cible = montant ?? 0
+  const avecSimulation = avecObjectif
 
   // La seule phrase qui reste : elle ne chiffre rien, elle dit un principe.
   const lignes = ['Les cotisations sont sans frais.']
@@ -971,15 +980,17 @@ function PanneauFrais({
       {avecSimulation && (
         <>
           <p style={{ fontSize: '12px', fontWeight: 800, color: T.textSec, letterSpacing: '0.3px', marginBottom: '8px' }}>
-            Sur {fmtFcfa(montant!)} FCFA collectés
+            Sur {fmtFcfa(cible)} FCFA collectés
           </p>
           <LigneSimulation
             libelle="Transfert vers un numéro"
-            montant={montant! - fraisReversement(cfg, montant!, { estTontine, estAssociation })}
+            montant={cible - fraisReversement(cfg, cible, { estTontine, estAssociation })}
           />
+          {/* Le retrait en espèces ne porte QUE le barème de l'opérateur : il
+              ne cumule pas le prélèvement du reversement. */}
           <LigneSimulation
             libelle="Retrait en espèces"
-            montant={montant! - fraisEspeces(cfg, montant!, { estTontine, estAssociation })}
+            montant={cible - fraisRetraitEspeces(cfg, cible)}
           />
           <div style={{ height: '14px' }} />
           <div style={{ height: '1px', background: T.border }} />
@@ -1677,7 +1688,8 @@ export default function MobileCreateCagnotte() {
         <div style={{ height: '24px' }} />
         <AnimItem delay={0.14}>
           <PanneauFrais
-            montant={aObjectifMontant && montantCible.trim() ? parseInt(montantCible.replace(/\s/g, ''), 10) : null}
+            avecObjectif={aObjectifMontant}
+            montant={montantCible.trim() ? parseInt(montantCible.replace(/\s/g, ''), 10) : null}
             estTontine={estTontine}
             estAssociation={estAssociation}
             accent={accent}
