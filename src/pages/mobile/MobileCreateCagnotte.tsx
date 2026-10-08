@@ -25,8 +25,7 @@ import { T } from '@/lib/tokens'
 import { TONTINES_ACTIVES } from '@/lib/featureFlags'
 import { ApiError } from '@/lib/api'
 import {
-  useFraisConfig, tauxTransfert, fraisReversement, fraisEspeces, pourcent, bareme,
-  operateurLisible, fmtFcfa, type FraisConfig,
+  useFraisConfig, fraisReversement, fraisEspeces, fmtFcfa, type FraisConfig,
 } from '@/lib/fraisApi'
 import { useAuthStore } from '@/store/authStore'
 import {
@@ -933,16 +932,15 @@ function LienRappelCGU({ accent, onOpen }: { accent: string; onOpen: () => void 
 /**
  * Panneau « Ce que ça coûte » — miroir de `_PanneauFrais` (Flutter).
  *
- * Quatre faits et une simulation, tous construits depuis la config serveur :
- * aucun taux n'est écrit ici. Sans config, le panneau ne s'affiche PAS plutôt
- * que d'annoncer un chiffre inventé — annoncer des frais faux à qui fixe un
- * objectif est pire que de ne rien annoncer.
+ * Une simulation en francs, et rien d'autre. Sans config, le panneau ne
+ * s'affiche PAS plutôt que d'annoncer un chiffre inventé — annoncer des frais
+ * faux à qui fixe un objectif est pire que de ne rien annoncer.
  *
- * RÈGLE 4-bis : on montre la PART prélevée, jamais le détail du calcul
- * (commission Paynala, frais opérateur de paiement et de retrait restent côté
- * serveur). Le barème de retrait en espèces est explicitement attribué à
- * l'opérateur, sinon le créateur nous imputerait un prélèvement qui ne nous
- * revient pas.
+ * RÈGLE 4-bis — **aucun pourcentage dans l'UI** (Daniel, 2026-10-08). Les trois
+ * puces qui annonçaient les taux et le barème de l'opérateur ont été retirées :
+ * ce que le créateur a besoin de savoir, c'est ce qu'il TOUCHE, et la
+ * simulation le lui donne en francs. Les taux restent dans les conditions
+ * d'utilisation, qui sont un texte contractuel et non l'UI de paiement.
  */
 function PanneauFrais({
   montant, estTontine, estAssociation, accent,
@@ -956,25 +954,10 @@ function PanneauFrais({
   const cfg: FraisConfig | null = useFraisConfig()
   if (!cfg) return null
 
-  const taux = tauxTransfert(cfg, { estTontine, estAssociation })
   const avecSimulation = montant != null && montant >= 100
 
-  const lignes = [
-    'Les cotisations sont sans frais.',
-    cfg.fraisMarchand > 0
-      ? `Payer un commerce depuis la cagnotte : ${pourcent(cfg.fraisMarchand)}.`
-      : 'Payer un commerce depuis la cagnotte : sans frais.',
-    // Les bornes ne s'invitent dans la phrase que si elles sont réglées :
-    // annoncer « plafonnés à 0 F » quand aucun plafond n'est posé serait un
-    // contresens.
-    taux > 0
-      ? `Transférer le solde vers un numéro : ${pourcent(taux)}`
-        + (cfg.plafondFraisRetrait > 0 ? `, plafonnés à ${fmtFcfa(cfg.plafondFraisRetrait)} F` : '')
-        + '.'
-        + (cfg.franchiseRetrait > 0 ? ` Gratuit sous ${fmtFcfa(cfg.franchiseRetrait)} F.` : '')
-      : 'Transférer le solde vers un numéro : sans frais.',
-    `Retirer l'argent en espèces : ${bareme(cfg)} (barème ${operateurLisible(cfg.operateur)}).`,
-  ]
+  // La seule phrase qui reste : elle ne chiffre rien, elle dit un principe.
+  const lignes = ['Les cotisations sont sans frais.']
 
   return (
     <div style={{ padding: '14px 16px 16px', background: T.surfaceEl, borderRadius: '16px', border: `1px solid ${T.border}` }}>
