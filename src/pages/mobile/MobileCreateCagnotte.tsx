@@ -25,7 +25,7 @@ import { T } from '@/lib/tokens'
 import { TONTINES_ACTIVES } from '@/lib/featureFlags'
 import { ApiError } from '@/lib/api'
 import {
-  useFraisConfig, tauxTransfert, cashApresRetrait, pourcent, bareme,
+  useFraisConfig, tauxTransfert, fraisReversement, fraisEspeces, pourcent, bareme,
   operateurLisible, fmtFcfa, type FraisConfig,
 } from '@/lib/fraisApi'
 import { useAuthStore } from '@/store/authStore'
@@ -964,8 +964,14 @@ function PanneauFrais({
     cfg.fraisMarchand > 0
       ? `Payer un commerce depuis la cagnotte : ${pourcent(cfg.fraisMarchand)}.`
       : 'Payer un commerce depuis la cagnotte : sans frais.',
+    // Les bornes ne s'invitent dans la phrase que si elles sont réglées :
+    // annoncer « plafonnés à 0 F » quand aucun plafond n'est posé serait un
+    // contresens.
     taux > 0
-      ? `Transférer le solde vers un numéro : ${pourcent(taux)}.`
+      ? `Transférer le solde vers un numéro : ${pourcent(taux)}`
+        + (cfg.plafondFraisRetrait > 0 ? `, plafonnés à ${fmtFcfa(cfg.plafondFraisRetrait)} F` : '')
+        + '.'
+        + (cfg.franchiseRetrait > 0 ? ` Gratuit sous ${fmtFcfa(cfg.franchiseRetrait)} F.` : '')
       : 'Transférer le solde vers un numéro : sans frais.',
     `Retirer l'argent en espèces : ${bareme(cfg)} (barème ${operateurLisible(cfg.operateur)}).`,
   ]
@@ -986,11 +992,11 @@ function PanneauFrais({
           </p>
           <LigneSimulation
             libelle="Transfert vers un numéro"
-            montant={montant! - Math.round(montant! * taux)}
+            montant={montant! - fraisReversement(cfg, montant!, { estTontine, estAssociation })}
           />
           <LigneSimulation
             libelle="Retrait en espèces"
-            montant={cashApresRetrait(cfg, montant!)}
+            montant={montant! - fraisEspeces(cfg, montant!, { estTontine, estAssociation })}
           />
           <div style={{ height: '14px' }} />
           <div style={{ height: '1px', background: T.border }} />

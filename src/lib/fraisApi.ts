@@ -36,6 +36,16 @@ export interface FraisConfig {
   fraisRetrait: Record<string, Record<string, number>>
   /** Taux prélevé quand une collecte règle un commerce (0.03 = 3 %). */
   fraisMarchand: number
+  /**
+   * Plafond du prélèvement sur un reversement, en FCFA.
+   *
+   * **Zéro veut dire « aucun plafond »**, pas « prélèvement nul » : c'est
+   * `fraisRetrait` qui porte le taux. Un serveur plus ancien qui ne connaît pas
+   * le champ laisse donc le taux s'appliquer sans borne, soit l'état d'avant.
+   */
+  plafondFraisRetrait: number
+  /** Reversement gratuit sous ce montant, en FCFA. Zéro = aucune franchise. */
+  franchiseRetrait: number
 }
 
 /** Matrice tolérante à l'absence de la clé — un serveur plus ancien ne casse rien. */
@@ -81,6 +91,8 @@ export async function lireFrais(operateur = 'airtel', pays = 'GA'): Promise<Frai
     tranches,
     fraisRetrait: matrice(r?.frais_retrait),
     fraisMarchand: Number(r?.frais_marchand ?? 0),
+    plafondFraisRetrait: Number(r?.plafond_frais_retrait ?? 0),
+    franchiseRetrait: Number(r?.franchise_retrait ?? 0),
   }
 }
 
@@ -97,6 +109,42 @@ export function tauxTransfert(
 ): number {
   const parType = cfg.fraisRetrait[opts.estTontine ? 'tontine' : 'cagnotte']
   return parType?.[opts.estAssociation ? 'association' : 'particulier'] ?? 0
+}
+
+/**
+ * Frais d'un reversement de `montant` vers un compte Mobile Money.
+ *
+ * Même calcul que l'app Flutter (`AirtelFeesCalculator.fraisReversement`) :
+ * gratuit sous la franchise, puis le taux, puis le plafond — dans cet ordre,
+ * qui est celui du barème annoncé. Les trois valeurs viennent du serveur,
+ * aucune n'est écrite ici.
+ */
+export function fraisReversement(
+  cfg: FraisConfig,
+  montant: number,
+  opts: { estTontine: boolean; estAssociation: boolean },
+): number {
+  if (cfg.franchiseRetrait > 0 && montant < cfg.franchiseRetrait) return 0
+
+  const brut = Math.round(montant * tauxTransfert(cfg, opts))
+  const plafond = cfg.plafondFraisRetrait
+
+  return plafond > 0 && brut > plafond ? plafond : brut
+}
+
+/**
+ * Frais totaux pour sortir `montant` en espèces.
+ *
+ * Sortir en espèces, c'est reverser PUIS retirer : les deux prélèvements
+ * s'additionnent. Les présenter séparément laisserait croire que le retrait est
+ * l'option la moins chère, alors qu'il porte les deux.
+ */
+export function fraisEspeces(
+  cfg: FraisConfig,
+  montant: number,
+  opts: { estTontine: boolean; estAssociation: boolean },
+): number {
+  return fraisReversement(cfg, montant, opts) + fraisRetraitEspeces(cfg, montant)
 }
 
 /** Frais que l'opérateur prélève pour un retrait en espèces de `montant`. */
